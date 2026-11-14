@@ -69,7 +69,7 @@ def test_create_character_uses_origin_package():
     campaign = create_campaign("Sobrevivência")
     character = create_character(campaign["id"])
     assert character["skills"] == {"primeiros_socorros": 2, "investigacao_sintomas": 1}
-    assert character["inventory"] == ["kit_atendimento_basico"]
+    assert character["inventory"] == ["kit_atendimento_basico", "agua_potavel", "racao"]
     assert character["needs"]["health"] == 100
     assert character["position_q"] == 0
     assert character["position_r"] == 0
