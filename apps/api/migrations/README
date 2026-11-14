@@ -1,0 +1,1 @@
+Migrações do banco Amazonia gerenciadas pelo Alembic. Revise toda migração e aplique primeiro em homologação. Nunca execute contra produção sem validar o resultado em homologação.
