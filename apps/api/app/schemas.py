@@ -29,8 +29,6 @@ class UserRead(BaseModel):
     display_name: str
 
 class AuthResponse(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
     user: UserRead
 
 class CampaignCreate(BaseModel):
