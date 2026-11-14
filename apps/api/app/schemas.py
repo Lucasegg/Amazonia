@@ -30,6 +30,7 @@ class UserRead(BaseModel):
 
 class AuthResponse(BaseModel):
     user: UserRead
+    csrf_token: str
 
 class CampaignCreate(BaseModel):
     name: str = Field(min_length=2, max_length=80)
