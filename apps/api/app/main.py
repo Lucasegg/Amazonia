@@ -14,7 +14,8 @@ from app.domain.rules import ORIGINS, Origin, RuleValidationError, resolve_check
 from app.domain.world import (
     MAX_CELL_COORDINATE,
     MOVE_COST_MINUTES,
-    apply_movement_needs,\n    apply_rest_needs,
+    apply_movement_needs,
+    apply_rest_needs,
     build_map_data,
     cell_key,
     hex_distance,
