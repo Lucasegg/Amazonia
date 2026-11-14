@@ -110,3 +110,17 @@ footer { display: flex; justify-content: space-between; gap: 18px; padding: 22px
 .saved-campaign strong { font-size: 12px; }
 .saved-campaign small { margin-top: 5px; color: var(--muted); font-size: 9px; }
 .saved-campaign b { color: var(--green); font: 9px ui-monospace, monospace; white-space: nowrap; }
+
+
+.appearance-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 10px 14px;
+  align-items: center;
+  margin: 14px 0 20px;
+}
+.appearance-grid label { margin: 0; }
+.appearance-grid select { width: 100%; min-width: 0; }
+@media (max-width: 560px) {
+  .appearance-grid { grid-template-columns: 1fr; gap: 7px; }
+}
