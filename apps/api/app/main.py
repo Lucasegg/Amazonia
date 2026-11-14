@@ -1,6 +1,5 @@
 """API inicial do jogo; regras e estado do mundo são controlados pelo servidor."""
 import os
-from math import ceil
 from random import SystemRandom
 from uuid import uuid4
 
