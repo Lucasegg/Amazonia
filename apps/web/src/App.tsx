@@ -117,13 +117,16 @@ function App() {
     const verificationToken = query.get("verify");
     const recoveryToken = query.get("reset");
     if (recoveryToken) { setResetToken(recoveryToken); setAuthMode("reset"); }
+    if (verificationToken || recoveryToken) {
+      // Remove token da barra de endereço e do histórico assim que for capturado.
+      window.history.replaceState({}, "", window.location.pathname);
+    }
     apiRequest<{ csrf_token: string }>("/api/v1/auth/csrf")
       .then(async (csrf) => {
         csrfToken = csrf.csrf_token;
         if (verificationToken) {
           const verified = await apiRequest<AuthResponse>("/api/v1/auth/verify-email", { method: "POST", body: JSON.stringify({ token: verificationToken }) });
           csrfToken = verified.csrf_token;
-          window.history.replaceState({}, "", window.location.pathname);
         }
         if (recoveryToken) return null;
         return apiRequest<Account>("/api/v1/auth/me");
