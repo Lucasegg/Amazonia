@@ -9,7 +9,7 @@ Importar locais reais de fontes públicas para o mapa sem consultar serviços ex
 O importador aceita um GeoJSON FeatureCollection com geometria Point. Cada feature deve ter:
 - geometry.coordinates: [longitude, latitude].
 - properties.name: nome do local.
-- properties.category: healthcare, police, fire_station, pharmacy, food, fuel, shelter, school, transport, market ou other.
+- properties.category: healthcare, police, fire_station, pharmacy, food, fuel, shelter, school, transport, market, water, park ou other.
 - properties.source_ref: identificador estável e único na fonte (ex.: osm:node:123).
 - properties.source: nome da fonte.
 - properties.source_license: licença exata da fonte.
@@ -17,6 +17,25 @@ O importador aceita um GeoJSON FeatureCollection com geometria Point. Cada featu
 - properties.tags: tags públicas originais, quando disponíveis.
 
 O importador só aplica padrões quando source_ref identifica claramente um elemento OSM (osm:node:id, osm:way:id ou osm:relation:id). Nesse caso, source é OpenStreetMap, source_license é ODbL-1.0 e source_url aponta para o elemento específico. Para qualquer outra fonte, origem, licença e URL são obrigatórias. Isso evita atribuir ODbL incorretamente a dados de terceiros.
+
+## Extração OpenStreetMap
+
+O script download_osm_pois faz uma única consulta limitada à região inicial (raio padrão de 5 km ao redor do Centro de São Paulo) e grava um GeoJSON local:
+
+    cd apps/api
+    python -m scripts.download_osm_pois --output ../../data/pois.geojson
+
+O raio e o centro podem ser ajustados por argumentos. A consulta inclui serviços de saúde, polícia, bombeiros, farmácias, água potável, alimentação, combustível, abrigos, escolas, transporte, mercados e parques. O script preserva IDs OSM, tags, links de cada elemento e atribuição/licença ODbL-1.0.
+
+O download é manual, serial e de uso pontual. Não executar na inicialização do jogo, não agendar consultas recorrentes e não disparar várias consultas em paralelo. A instância pública Overpass é um serviço comunitário sem SLA; pode estar sobrecarregada e impor limites. O script identifica a aplicação por User-Agent e não faz retry automático em caso de erro/limite. Consulte a política e o estado do serviço antes de novas extrações:
+- https://wiki.openstreetmap.org/wiki/Overpass_API
+- https://overpass.ch/guides/overpass-api-errors
+
+Depois de revisar o GeoJSON e os metadados, importe para a branch Neon de desenvolvimento/homologação:
+
+    python -m scripts.import_pois_geojson --input ../../data/pois.geojson
+
+A extração local não é commitada automaticamente no repositório. O arquivo pode conter muitos pontos e deve ser revisado antes de qualquer importação.
 
 ## Fontes documentadas
 
@@ -26,7 +45,8 @@ O importador só aplica padrões quando source_ref identifica claramente um elem
 - Licença: ODbL-1.0.
 - Atribuição: © OpenStreetMap contributors.
 - URL de referência: https://www.openstreetmap.org/
-- Cada registro deve preservar o tipo e o ID do elemento OSM.
+- Cada registro preserva o tipo e o ID do elemento OSM.
+- A licença e as regras de atribuição oficiais: https://www.openstreetmap.org/copyright
 
 ### GeoSampa — Prefeitura de São Paulo
 
@@ -36,15 +56,6 @@ O importador só aplica padrões quando source_ref identifica claramente um elem
 - Não aplicar o padrão ODbL a dados GeoSampa.
 
 A camada de UBS/Posto/Centro de Saúde inclui estabelecimentos municipais, estaduais, federais e privados. A camada deve ser tratada como referência geográfica; não confirma funcionamento atual, disponibilidade de atendimento ou estoque.
-
-## Importação
-
-Com DATABASE_URL apontando para a branch Neon de desenvolvimento/homologação e migrações aplicadas:
-
-    cd apps/api
-    python -m scripts.import_pois_geojson --input ../../data/pois.geojson
-
-O script faz upsert por source_ref. Não apaga POIs que não estejam no arquivo importado. Locais sem nome ou fora da área de protótipo são ignorados; categorias desconhecidas, geometrias inválidas, referências instáveis, URLs inválidas e metadados de licença ausentes geram erro.
 
 ## Descoberta no jogo
 
@@ -56,4 +67,6 @@ O script faz upsert por source_ref. Não apaga POIs que não estejam no arquivo 
 
 ## Limites e governança
 
-Nenhum POI real está embutido no código ou foi criado por suposição. O pipeline não baixa nem faz scraping; a aquisição do GeoJSON é uma etapa separada e auditável. Antes da importação, revisar área geográfica, data de atualização, campos, licença e atribuição. Não tratar a presença de um POI como confirmação de recursos, serviços, segurança ou disponibilidade no mundo do jogo.
+O downloader gera um arquivo local; não grava diretamente no banco. O importador faz upsert por source_ref e não apaga POIs ausentes no arquivo. Locais sem nome ou fora da área do protótipo são ignorados; categorias desconhecidas, geometrias inválidas, referências instáveis, URLs inválidas e metadados de licença ausentes geram erro.
+
+Nenhum POI real foi importado automaticamente nesta etapa. Antes da importação, revisar área geográfica, data de atualização, campos, licença e atribuição. Não tratar a presença de um POI como confirmação de recursos, serviços, segurança ou disponibilidade no mundo do jogo.
