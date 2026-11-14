@@ -1,4 +1,6 @@
+"""API inicial do jogo; o cliente nunca decide resultados mecânicos."""
 import os
+from random import SystemRandom
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,7 +14,7 @@ from app.schemas import CampaignCreate, CampaignRead, CharacterCreate, Character
 
 app = FastAPI(
     title="Amazonia API",
-    version="0.2.0",
+    version="0.3.0",
     description="API inicial do RPG Amazonia. O motor de regras é determinístico e independente da IA.",
 )
 
@@ -34,7 +36,7 @@ app.add_middleware(
 
 
 class CheckRequest(BaseModel):
-    roll: int = Field(ge=1, le=20)
+    """Parâmetros de um teste; o D20 é produzido no servidor."""
     attribute_value: int = Field(ge=1, le=5)
     skill_level: int = Field(ge=0, le=5)
     difficulty: int
@@ -43,11 +45,13 @@ class CheckRequest(BaseModel):
 
 @app.get("/health", tags=["operacao"])
 def health() -> dict[str, str]:
+    """Verifica disponibilidade sem expor configuração."""
     return {"status": "ok", "service": "amazonia-api"}
 
 
 @app.get("/api/v1/game/origins", tags=["jogo"])
 def list_origins() -> list[dict[str, object]]:
+    """Lista as três origens do primeiro protótipo."""
     return [
         {
             "id": profile.id.value,
@@ -62,8 +66,15 @@ def list_origins() -> list[dict[str, object]]:
 
 @app.post("/api/v1/game/checks", tags=["jogo"])
 def perform_check(payload: CheckRequest) -> dict[str, object]:
+    """Gera a rolagem aleatória no servidor e executa o cálculo do domínio."""
     try:
-        result = resolve_check(**payload.model_dump())
+        result = resolve_check(
+            roll=SystemRandom().randint(1, 20),
+            attribute_value=payload.attribute_value,
+            skill_level=payload.skill_level,
+            difficulty=payload.difficulty,
+            situational_modifier=payload.situational_modifier,
+        )
     except RuleValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {
@@ -81,6 +92,7 @@ def perform_check(payload: CheckRequest) -> dict[str, object]:
 
 @app.get("/api/v1/game/origins/{origin_id}", tags=["jogo"])
 def get_origin(origin_id: str) -> dict[str, object]:
+    """Retorna o pacote de uma origem ou 404."""
     try:
         profile = ORIGINS[Origin(origin_id)]
     except (ValueError, KeyError) as exc:
@@ -96,6 +108,7 @@ def get_origin(origin_id: str) -> dict[str, object]:
 
 @app.post("/api/v1/campaigns", response_model=CampaignRead, status_code=201, tags=["campanhas"])
 def create_campaign(payload: CampaignCreate, db: Session = Depends(get_db)) -> Campaign:
+    """Cria uma campanha sem personagem; o personagem é cadastrado em etapa própria."""
     campaign = Campaign(name=payload.name.strip())
     db.add(campaign)
     db.commit()
@@ -105,6 +118,7 @@ def create_campaign(payload: CampaignCreate, db: Session = Depends(get_db)) -> C
 
 @app.get("/api/v1/campaigns/{campaign_id}", response_model=CampaignRead, tags=["campanhas"])
 def get_campaign(campaign_id: str, db: Session = Depends(get_db)) -> Campaign:
+    """Carrega campanha persistida ou retorna 404."""
     campaign = db.get(Campaign, campaign_id)
     if campaign is None:
         raise HTTPException(status_code=404, detail="Campanha não encontrada.")
@@ -122,6 +136,7 @@ def create_character(
     payload: CharacterCreate,
     db: Session = Depends(get_db),
 ) -> Character:
+    """Cria um único personagem e aplica o pacote da origem escolhida."""
     campaign = db.get(Campaign, campaign_id)
     if campaign is None:
         raise HTTPException(status_code=404, detail="Campanha não encontrada.")
