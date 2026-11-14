@@ -82,3 +82,14 @@ footer { display: flex; justify-content: space-between; gap: 18px; padding: 22px
 .legend-known { background: #6e8e5d; }
 .legend-unknown { background: #24352a; }
 @media (max-width: 420px) { .move-controls { grid-template-columns: repeat(3, 1fr); } .map-meta { flex-direction: column; } }
+
+
+.inventory-list { display: grid; gap: 8px; }
+.inventory-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px; border: 1px solid var(--line); background: #111a14; }
+.inventory-row strong, .inventory-row small { display: block; }
+.inventory-row strong { color: #e7eee2; font-size: 11px; }
+.inventory-row strong span { color: var(--green); font-weight: 500; }
+.inventory-row small { margin-top: 4px; color: var(--muted); font-size: 9px; line-height: 1.5; }
+.inventory-row button { flex: 0 0 auto; padding: 9px 12px; border: 1px solid #78945d; background: #263a29; color: var(--green); font: 9px ui-monospace, monospace; letter-spacing: .1em; cursor: pointer; }
+.inventory-row button:hover:not(:disabled) { background: #344b34; }
+.inventory-row button:disabled { opacity: .45; cursor: wait; }
