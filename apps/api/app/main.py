@@ -1,4 +1,4 @@
-"""API inicial do jogo; o cliente nunca decide resultados mecânicos."""
+"""API do jogo; o cliente nunca decide resultados mecânicos nem movimento."""
 import os
 from random import SystemRandom
 
@@ -9,13 +9,20 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.domain.rules import ORIGINS, Origin, RuleValidationError, resolve_check
+from app.domain.world import (
+    MAX_CELL_COORDINATE,
+    MOVE_COST_MINUTES,
+    build_map_data,
+    cell_key,
+    hex_distance,
+)
 from app.models import Campaign, Character
-from app.schemas import CampaignCreate, CampaignRead, CharacterCreate, CharacterRead
+from app.schemas import CampaignCreate, CampaignRead, CharacterCreate, CharacterRead, MoveRequest
 
 app = FastAPI(
     title="Amazonia API",
-    version="0.3.0",
-    description="API inicial do RPG Amazonia. O motor de regras é determinístico e independente da IA.",
+    version="0.4.0",
+    description="API inicial do RPG Amazonia. Regras e movimentação são validadas no servidor.",
 )
 
 allowed_origins = [
@@ -152,8 +159,61 @@ def create_character(
         skills=dict(profile.starting_skills),
         inventory=list(profile.starting_items),
         needs={"hunger": 0, "thirst": 0, "fatigue": 0, "health": 100},
+        position_q=0,
+        position_r=0,
+        discovered_cells=["0:0"],
     )
     db.add(character)
     db.commit()
     db.refresh(character)
     return character
+
+
+@app.get("/api/v1/campaigns/{campaign_id}/map", tags=["exploracao"])
+def get_campaign_map(campaign_id: str, db: Session = Depends(get_db)) -> dict[str, object]:
+    """Retorna a grade hexagonal visível e somente o estado descoberto."""
+    campaign = db.get(Campaign, campaign_id)
+    if campaign is None:
+        raise HTTPException(status_code=404, detail="Campanha não encontrada.")
+    if campaign.character is None:
+        raise HTTPException(status_code=409, detail="Crie o personagem antes de explorar.")
+    return build_map_data(campaign, campaign.character)
+
+
+@app.post("/api/v1/campaigns/{campaign_id}/move", tags=["exploracao"])
+def move_character(
+    campaign_id: str,
+    payload: MoveRequest,
+    db: Session = Depends(get_db),
+) -> dict[str, object]:
+    """Move exatamente uma célula adjacente e avança o relógio do mundo."""
+    campaign = db.get(Campaign, campaign_id)
+    if campaign is None:
+        raise HTTPException(status_code=404, detail="Campanha não encontrada.")
+    character = campaign.character
+    if character is None:
+        raise HTTPException(status_code=409, detail="Crie o personagem antes de explorar.")
+
+    if abs(payload.target_q) > MAX_CELL_COORDINATE or abs(payload.target_r) > MAX_CELL_COORDINATE:
+        raise HTTPException(status_code=422, detail="Destino fora dos limites do protótipo.")
+    distance = hex_distance(
+        character.position_q,
+        character.position_r,
+        payload.target_q,
+        payload.target_r,
+    )
+    if distance == 0:
+        raise HTTPException(status_code=409, detail="O personagem já está nessa célula.")
+    if distance != 1:
+        raise HTTPException(status_code=422, detail="Só é permitido mover para uma célula adjacente.")
+
+    character.position_q = payload.target_q
+    character.position_r = payload.target_r
+    discovered = set(character.discovered_cells or [])
+    discovered.add(cell_key(payload.target_q, payload.target_r))
+    character.discovered_cells = sorted(discovered)
+    campaign.world_time_minutes += MOVE_COST_MINUTES
+    db.commit()
+    db.refresh(campaign)
+    db.refresh(character)
+    return build_map_data(campaign, character)
