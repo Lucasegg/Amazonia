@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 
 from app.database import get_db
 from app.domain.inventory import ITEMS, InventoryRuleError, consume_item
@@ -20,8 +21,9 @@ from app.domain.world import (
     cell_key,
     hex_distance,
 )
-from app.models import Campaign, Character, PointOfInterest
-from app.schemas import CampaignCreate, CampaignRead, CharacterCreate, CharacterRead, MoveRequest, UseItemRequest
+from app.models import Campaign, Character, PointOfInterest, User
+from app.schemas import AuthResponse, CampaignCreate, CampaignRead, CharacterCreate, CharacterRead, LoginRequest, MoveRequest, RegisterRequest, UseItemRequest, UserRead
+from app.auth import create_access_token, get_current_user, hash_password, verify_password
 
 app = FastAPI(
     title="Amazonia API",
@@ -42,7 +44,7 @@ app.add_middleware(
     allow_origins=allowed_origins,
     allow_credentials=False,
     allow_methods=["GET", "POST"],
-    allow_headers=["Content-Type"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 
 
@@ -117,10 +119,55 @@ def get_origin(origin_id: str) -> dict[str, object]:
     }
 
 
+@app.post("/api/v1/auth/register", response_model=AuthResponse, status_code=201, tags=["autenticacao"])
+def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> dict[str, object]:
+    """Cria uma conta com senha derivada por Argon2id e inicia sessão."""
+    if db.query(User).filter(User.email == payload.email).first() is not None:
+        raise HTTPException(status_code=409, detail="Este e-mail já possui uma conta.")
+    user = User(email=payload.email, display_name=payload.display_name.strip(), password_hash=hash_password(payload.password))
+    db.add(user)
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Este e-mail já possui uma conta.") from exc
+    db.refresh(user)
+    return {"access_token": create_access_token(user.id), "user": user}
+
+
+@app.post("/api/v1/auth/login", response_model=AuthResponse, tags=["autenticacao"])
+def login(payload: LoginRequest, db: Session = Depends(get_db)) -> dict[str, object]:
+    """Autentica por e-mail e senha sem revelar qual campo falhou."""
+    user = db.query(User).filter(User.email == payload.email).first()
+    if user is None or not verify_password(payload.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="E-mail ou senha inválidos.", headers={"WWW-Authenticate": "Bearer"})
+    return {"access_token": create_access_token(user.id), "user": user}
+
+
+@app.get("/api/v1/auth/me", response_model=UserRead, tags=["autenticacao"])
+def current_account(current_user: User = Depends(get_current_user)) -> User:
+    """Retorna somente os dados públicos da conta autenticada."""
+    return current_user
+
+
+@app.get("/api/v1/campaigns", response_model=list[CampaignRead], tags=["campanhas"])
+def list_campaigns(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> list[Campaign]:
+    """Lista exclusivamente campanhas pertencentes à conta autenticada."""
+    return db.query(Campaign).filter(Campaign.user_id == current_user.id).order_by(Campaign.updated_at.desc()).all()
+
+
+def _owned_campaign(db: Session, campaign_id: str, user_id: str) -> Campaign:
+    """Oculta campanhas inexistentes e alheias com a mesma resposta 404."""
+    campaign = db.query(Campaign).filter(Campaign.id == campaign_id, Campaign.user_id == user_id).first()
+    if campaign is None:
+        raise HTTPException(status_code=404, detail="Campanha não encontrada.")
+    return campaign
+
+
 @app.post("/api/v1/campaigns", response_model=CampaignRead, status_code=201, tags=["campanhas"])
-def create_campaign(payload: CampaignCreate, db: Session = Depends(get_db)) -> Campaign:
+def create_campaign(payload: CampaignCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> Campaign:
     """Cria uma campanha sem personagem; o personagem é cadastrado em etapa própria."""
-    campaign = Campaign(name=payload.name.strip())
+    campaign = Campaign(name=payload.name.strip(), user_id=current_user.id)
     db.add(campaign)
     db.commit()
     db.refresh(campaign)
@@ -128,9 +175,9 @@ def create_campaign(payload: CampaignCreate, db: Session = Depends(get_db)) -> C
 
 
 @app.get("/api/v1/campaigns/{campaign_id}", response_model=CampaignRead, tags=["campanhas"])
-def get_campaign(campaign_id: str, db: Session = Depends(get_db)) -> Campaign:
+def get_campaign(campaign_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> Campaign:
     """Carrega campanha persistida ou retorna 404."""
-    campaign = db.get(Campaign, campaign_id)
+    campaign = _owned_campaign(db, campaign_id, current_user.id)
     if campaign is None:
         raise HTTPException(status_code=404, detail="Campanha não encontrada.")
     return campaign
@@ -146,9 +193,10 @@ def create_character(
     campaign_id: str,
     payload: CharacterCreate,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> Character:
     """Cria um único personagem e aplica o pacote da origem escolhida."""
-    campaign = db.get(Campaign, campaign_id)
+    campaign = _owned_campaign(db, campaign_id, current_user.id)
     if campaign is None:
         raise HTTPException(status_code=404, detail="Campanha não encontrada.")
     if campaign.character is not None:
@@ -174,9 +222,9 @@ def create_character(
 
 
 @app.post("/api/v1/campaigns/{campaign_id}/rest", tags=["sobrevivencia"])
-def rest_character(campaign_id: str, db: Session = Depends(get_db)) -> dict[str, object]:
+def rest_character(campaign_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> dict[str, object]:
     """Descansa uma hora, recuperando fadiga e avançando o relógio."""
-    campaign = db.get(Campaign, campaign_id)
+    campaign = _owned_campaign(db, campaign_id, current_user.id)
     if campaign is None:
         raise HTTPException(status_code=404, detail="Campanha não encontrada.")
     character = campaign.character
@@ -218,7 +266,7 @@ def use_inventory_item(
     db: Session = Depends(get_db),
 ) -> dict[str, object]:
     """Consome uma unidade do inventário e persiste seus efeitos atomicamente."""
-    campaign = db.get(Campaign, campaign_id)
+    campaign = _owned_campaign(db, campaign_id, current_user.id)
     if campaign is None:
         raise HTTPException(status_code=404, detail="Campanha não encontrada.")
     character = campaign.character
@@ -267,9 +315,9 @@ def _visible_points_of_interest(db: Session, character: Character) -> list[Point
 
 
 @app.get("/api/v1/campaigns/{campaign_id}/map", tags=["exploracao"])
-def get_campaign_map(campaign_id: str, db: Session = Depends(get_db)) -> dict[str, object]:
+def get_campaign_map(campaign_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> dict[str, object]:
     """Retorna a grade hexagonal visível e somente o estado descoberto."""
-    campaign = db.get(Campaign, campaign_id)
+    campaign = _owned_campaign(db, campaign_id, current_user.id)
     if campaign is None:
         raise HTTPException(status_code=404, detail="Campanha não encontrada.")
     if campaign.character is None:
@@ -282,9 +330,10 @@ def move_character(
     campaign_id: str,
     payload: MoveRequest,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> dict[str, object]:
     """Move exatamente uma célula adjacente e avança tempo e necessidades."""
-    campaign = db.get(Campaign, campaign_id)
+    campaign = _owned_campaign(db, campaign_id, current_user.id)
     if campaign is None:
         raise HTTPException(status_code=404, detail="Campanha não encontrada.")
     character = campaign.character
