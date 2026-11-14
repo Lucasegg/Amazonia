@@ -2,15 +2,17 @@ import { useEffect, useRef } from "react";
 import {
   Map as MapLibreMap,
   NavigationControl,
+  Popup,
   type GeoJSONSource,
 } from "maplibre-gl";
-import type { Feature, FeatureCollection, Polygon } from "geojson";
+import type { Feature, FeatureCollection, Point, Polygon } from "geojson";
 import "maplibre-gl/dist/maplibre-gl.css";
-import type { MapCell, MapData } from "./types";
+import type { MapCell, MapData, MapPointOfInterest } from "./types";
 
 const INITIAL_VIEW: [number, number] = [-46.6333, -23.5505];
 
 type CellProperties = Pick<MapCell, "q" | "r" | "discovered" | "current" | "adjacent">;
+type PoiProperties = Pick<MapPointOfInterest, "id" | "name" | "category">;
 
 function cellsToGeoJSON(cells: MapCell[]): FeatureCollection<Polygon, CellProperties> {
   const features: Feature<Polygon, CellProperties>[] = cells.map((cell) => {
@@ -36,6 +38,15 @@ function cellsToGeoJSON(cells: MapCell[]): FeatureCollection<Polygon, CellProper
       geometry: { type: "Polygon", coordinates: [ring] },
     };
   });
+  return { type: "FeatureCollection", features };
+}
+
+function poisToGeoJSON(pois: MapPointOfInterest[]): FeatureCollection<Point, PoiProperties> {
+  const features: Feature<Point, PoiProperties>[] = pois.map((poi) => ({
+    type: "Feature",
+    properties: { id: poi.id, name: poi.name, category: poi.category },
+    geometry: { type: "Point", coordinates: [poi.longitude, poi.latitude] },
+  }));
   return { type: "FeatureCollection", features };
 }
 
@@ -114,15 +125,45 @@ function MapView({ mapData, onMove }: MapViewProps) {
           "line-opacity": 0.9,
         },
       });
+      map.addSource("game-pois", {
+        type: "geojson",
+        data: poisToGeoJSON(mapDataRef.current?.points_of_interest ?? []),
+      });
+      map.addLayer({
+        id: "game-poi-circles",
+        type: "circle",
+        source: "game-pois",
+        paint: {
+          "circle-radius": 6,
+          "circle-color": "#e0ad68",
+          "circle-stroke-color": "#17211a",
+          "circle-stroke-width": 1.5,
+        },
+      });
+
       map.on("click", "game-cells-fill", (event) => {
         const properties = event.features?.[0]?.properties;
         if (!properties || !properties.adjacent || properties.current) return;
         onMoveRef.current(Number(properties.q), Number(properties.r));
       });
+      map.on("click", "game-poi-circles", (event) => {
+        const properties = event.features?.[0]?.properties;
+        if (!properties) return;
+        new Popup({ closeButton: true, closeOnClick: true })
+          .setLngLat(event.lngLat)
+          .setText(`${String(properties.name)} · ${String(properties.category)}`)
+          .addTo(map);
+      });
       map.on("mouseenter", "game-cells-fill", () => {
         map.getCanvas().style.cursor = "pointer";
       });
       map.on("mouseleave", "game-cells-fill", () => {
+        map.getCanvas().style.cursor = "";
+      });
+      map.on("mouseenter", "game-poi-circles", () => {
+        map.getCanvas().style.cursor = "help";
+      });
+      map.on("mouseleave", "game-poi-circles", () => {
         map.getCanvas().style.cursor = "";
       });
     });
@@ -136,16 +177,21 @@ function MapView({ mapData, onMove }: MapViewProps) {
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapData) return;
-    const updateSource = () => {
-      const source = map.getSource("game-cells") as GeoJSONSource | undefined;
-      source?.setData(cellsToGeoJSON(mapData.cells));
+    const updateSources = () => {
+      const cellsSource = map.getSource("game-cells") as GeoJSONSource | undefined;
+      const poisSource = map.getSource("game-pois") as GeoJSONSource | undefined;
+      cellsSource?.setData(cellsToGeoJSON(mapData.cells));
+      poisSource?.setData(poisToGeoJSON(mapData.points_of_interest));
       map.easeTo({
         center: [mapData.player_position.longitude, mapData.player_position.latitude],
         duration: 350,
       });
     };
-    if (map.isStyleLoaded() && map.getSource("game-cells")) updateSource();
-    else map.once("load", updateSource);
+    if (map.isStyleLoaded() && map.getSource("game-cells") && map.getSource("game-pois")) {
+      updateSources();
+    } else {
+      map.once("load", updateSources);
+    }
   }, [mapData]);
 
   return (
