@@ -129,7 +129,9 @@ def test_map_and_move_are_validated_by_server():
     assert state["player_position"]["q"] == 1
     assert state["player_position"]["r"] == 0
     assert state["world_time_minutes"] == 10
-    assert "1:0" in state["cells"][0]["discovered"] if False else True
+    target_cell = next(cell for cell in state["cells"] if cell["q"] == 1 and cell["r"] == 0)
+    assert target_cell["discovered"] is True
+    assert target_cell["current"] is True
 
     invalid = client.post(
         f"/api/v1/campaigns/{campaign['id']}/move",
