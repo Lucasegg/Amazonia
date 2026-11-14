@@ -8,6 +8,7 @@ from sqlalchemy.pool import StaticPool
 from app.database import Base, get_db
 from app.main import app
 from app import models  # noqa: F401
+from app.models import PointOfInterest
 
 
 test_engine = create_engine(
@@ -141,3 +142,54 @@ def test_map_and_move_are_validated_by_server():
     current = client.get(f"/api/v1/campaigns/{campaign['id']}/map").json()
     assert current["player_position"]["q"] == 1
     assert current["world_time_minutes"] == 10
+
+
+
+def test_map_reveals_points_of_interest_only_after_cell_discovery():
+    """POIs de células vizinhas permanecem ocultos até o personagem explorá-las."""
+    campaign = create_campaign("Descoberta de locais")
+    create_character(campaign["id"])
+
+    with TestingSessionLocal() as session:
+        session.add_all([
+            PointOfInterest(
+                id="poi-center",
+                source_ref="test:center",
+                name="Ponto conhecido",
+                category="healthcare",
+                latitude=-23.5505,
+                longitude=-46.6333,
+                cell_q=0,
+                cell_r=0,
+                tags={},
+                source="Fixture",
+                source_license="CC0",
+                source_url="https://example.invalid/",
+            ),
+            PointOfInterest(
+                id="poi-east",
+                source_ref="test:east",
+                name="Ponto oculto",
+                category="food",
+                latitude=-23.5505,
+                longitude=-46.6238,
+                cell_q=1,
+                cell_r=0,
+                tags={},
+                source="Fixture",
+                source_license="CC0",
+                source_url="https://example.invalid/",
+            ),
+        ])
+        session.commit()
+
+    initial = client.get(f"/api/v1/campaigns/{campaign['id']}/map").json()
+    assert [poi["name"] for poi in initial["points_of_interest"]] == ["Ponto conhecido"]
+
+    moved = client.post(
+        f"/api/v1/campaigns/{campaign['id']}/move",
+        json={"target_q": 1, "target_r": 0},
+    )
+    assert moved.status_code == 200
+    names = {poi["name"] for poi in moved.json()["points_of_interest"]}
+    assert names == {"Ponto conhecido", "Ponto oculto"}
