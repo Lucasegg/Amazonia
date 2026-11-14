@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   api:
-    name: API - testes e compilação
+    name: API - testes, migrações e compilação
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -27,7 +27,11 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
+      - name: Validar migrações
+        env:
+          DATABASE_URL: sqlite:///./ci.db
+        run: alembic upgrade head
       - name: Executar testes
         run: pytest
       - name: Verificar sintaxe
-        run: python -m compileall -q app
+        run: python -m compileall -q app migrations
