@@ -78,10 +78,12 @@ function App() {
   const [origins, setOrigins] = useState<Origin[]>([]);
   const [account, setAccount] = useState<Account | null>(null);
   const [authReady, setAuthReady] = useState(false);
-  const [authMode, setAuthMode] = useState<"login" | "register">("login");
+  const [authMode, setAuthMode] = useState<"login" | "register" | "forgot" | "reset">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [authNotice, setAuthNotice] = useState("");
+  const [resetToken, setResetToken] = useState("");
   const [savedCampaigns, setSavedCampaigns] = useState<Campaign[]>([]);
   const [itemCatalog, setItemCatalog] = useState<InventoryItem[]>([]);
   const [usingItem, setUsingItem] = useState(false);
@@ -98,8 +100,20 @@ function App() {
 
   useEffect(() => {
     let active = true;
+    const query = new URLSearchParams(window.location.search);
+    const verificationToken = query.get("verify");
+    const recoveryToken = query.get("reset");
+    if (recoveryToken) { setResetToken(recoveryToken); setAuthMode("reset"); }
     apiRequest<{ csrf_token: string }>("/api/v1/auth/csrf")
-      .then((csrf) => { csrfToken = csrf.csrf_token; return apiRequest<Account>("/api/v1/auth/me"); })
+      .then(async (csrf) => {
+        csrfToken = csrf.csrf_token;
+        if (verificationToken) {
+          const verified = await apiRequest<AuthResponse>("/api/v1/auth/verify-email", { method: "POST", body: JSON.stringify({ token: verificationToken }) });
+          csrfToken = verified.csrf_token;
+          window.history.replaceState({}, "", window.location.pathname);
+        }
+        return apiRequest<Account>("/api/v1/auth/me");
+      })
       .then(async (user) => {
         if (!active) return;
         setAccount(user);
@@ -122,11 +136,21 @@ function App() {
   }, []);
 
   async function handleAuth(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); setError(""); setLoading(true);
+    event.preventDefault(); setError(""); setAuthNotice(""); setLoading(true);
     try {
-      const path = authMode === "register" ? "/api/v1/auth/register" : "/api/v1/auth/login";
-      const payload = authMode === "register" ? { email, password, display_name: displayName } : { email, password };
-      const result = await apiRequest<AuthResponse>(path, { method: "POST", body: JSON.stringify(payload) });
+      if (authMode === "register") {
+        const result = await apiRequest<{ message: string }>("/api/v1/auth/register", { method: "POST", body: JSON.stringify({ email, password, display_name: displayName }) });
+        setAuthNotice(result.message); setAuthMode("login"); setPassword(""); return;
+      }
+      if (authMode === "forgot") {
+        const result = await apiRequest<{ message: string }>("/api/v1/auth/forgot-password", { method: "POST", body: JSON.stringify({ email, password: "not-used" }) });
+        setAuthNotice(result.message); setAuthMode("login"); return;
+      }
+      if (authMode === "reset") {
+        const result = await apiRequest<{ message: string }>("/api/v1/auth/reset-password", { method: "POST", body: JSON.stringify({ token: resetToken, password }) });
+        setAuthNotice(result.message); setAuthMode("login"); setResetToken(""); setPassword(""); return;
+      }
+      const result = await apiRequest<AuthResponse>("/api/v1/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
       csrfToken = result.csrf_token;
       setAccount(result.user);
       const [items, catalog, campaigns] = await Promise.all([apiRequest<Origin[]>("/api/v1/game/origins"), apiRequest<InventoryItem[]>("/api/v1/game/items"), apiRequest<Campaign[]>("/api/v1/campaigns")]);
@@ -134,6 +158,15 @@ function App() {
       if (items.length > 0) setSelectedOrigin(items[0].id); setPassword("");
     } catch (err) { setError(err instanceof Error ? err.message : "Não foi possível autenticar."); }
     finally { setLoading(false); setAuthReady(true); }
+  }
+
+  async function resendVerification() {
+    setError(""); setAuthNotice(""); setLoading(true);
+    try {
+      const result = await apiRequest<{ message: string }>("/api/v1/auth/resend-verification", { method: "POST", body: JSON.stringify({ email, password: "not-used" }) });
+      setAuthNotice(result.message);
+    } catch (err) { setError(err instanceof Error ? err.message : "Não foi possível solicitar a confirmação."); }
+    finally { setLoading(false); }
   }
 
   async function handleLogout() {
@@ -283,18 +316,19 @@ function App() {
 
       {!authReady ? (<section className="setup-card"><h2>Preparando sua sessão</h2></section>) : !account ? (<section className="setup-card">
           <div className="section-kicker">ACESSO SEGURO · AMAZONIA</div>
-          <h2>{authMode === "login" ? "Entre na sua conta" : "Crie sua conta"}</h2>
+          <h2>{authMode === "login" ? "Entre na sua conta" : authMode === "register" ? "Crie sua conta" : authMode === "forgot" ? "Recuperar senha" : "Defina uma nova senha"}</h2>
           <p className="muted">Suas campanhas ficam privadas e vinculadas à sua conta.</p>
+          {authNotice && <p className="muted" role="status">{authNotice}</p>}
           <form onSubmit={handleAuth}>
             {authMode === "register" && <><label htmlFor="display-name">Nome de exibição</label><input id="display-name" value={displayName} onChange={(event) => setDisplayName(event.target.value)} minLength={2} maxLength={80} required /></>}
-            <label htmlFor="account-email">E-mail</label>
-            <input id="account-email" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
-            <label htmlFor="account-password">Senha {authMode === "register" && "(mínimo 12 caracteres)"}</label>
-            <input id="account-password" type="password" autoComplete={authMode === "login" ? "current-password" : "new-password"} minLength={authMode === "register" ? 12 : 1} maxLength={128} value={password} onChange={(event) => setPassword(event.target.value)} required />
-            <button className="primary-button" type="submit" disabled={loading}>{loading ? "AGUARDE..." : authMode === "login" ? "ENTRAR" : "CRIAR CONTA"} <span>↗</span></button>
+            {(authMode === "login" || authMode === "register" || authMode === "forgot") && <><label htmlFor="account-email">E-mail</label><input id="account-email" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></>}
+            {(authMode === "login" || authMode === "register" || authMode === "reset") && <><label htmlFor="account-password">Senha {authMode !== "login" && "(mínimo 12 caracteres)"}</label><input id="account-password" type="password" autoComplete={authMode === "login" ? "current-password" : "new-password"} minLength={authMode === "login" ? 1 : 12} maxLength={128} value={password} onChange={(event) => setPassword(event.target.value)} required /></>}
+            <button className="primary-button" type="submit" disabled={loading}>{loading ? "AGUARDE..." : authMode === "login" ? "ENTRAR" : authMode === "register" ? "CRIAR CONTA" : authMode === "forgot" ? "ENVIAR INSTRUÇÕES" : "REDEFINIR SENHA"} <span>↗</span></button>
           </form>
-          <button className="auth-switch" type="button" onClick={() => setAuthMode(authMode === "login" ? "register" : "login")}>{authMode === "login" ? "Ainda não tem conta? Criar conta" : "Já tem conta? Entrar"}</button>
-          <div className="footnote">SENHAS PROTEGIDAS · CAMPANHAS PRIVADAS · SESSÃO COM VALIDADE LIMITADA</div>
+          {authMode === "login" && <button className="auth-switch" type="button" onClick={() => setAuthMode("forgot")}>Esqueci minha senha</button>}
+          {authMode === "login" && <button className="auth-switch" type="button" onClick={resendVerification} disabled={loading}>Reenviar confirmação de e-mail</button>}
+          <button className="auth-switch" type="button" onClick={() => { setAuthNotice(""); setAuthMode(authMode === "login" ? "register" : "login"); }}>{authMode === "login" ? "Ainda não tem conta? Criar conta" : "Voltar para entrar"}</button>
+          <div className="footnote">SENHAS PROTEGIDAS · CONFIRMAÇÃO DE E-MAIL · SESSÕES REVOGÁVEIS</div>
         </section>) : !campaign ? (
         <section className="setup-card">
           <div className="section-kicker">01 / INÍCIO DA JORNADA</div>
