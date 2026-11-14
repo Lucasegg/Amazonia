@@ -37,6 +37,8 @@ class CharacterRead(BaseModel):
     skills: dict[str, int]
     inventory: list[str]
     needs: dict[str, int]
+    position: dict[str, object]
+    discovered_locations: list[str]
 
 
 class CampaignRead(BaseModel):
