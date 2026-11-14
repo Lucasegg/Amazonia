@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from math import isfinite
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
@@ -97,9 +98,11 @@ def classify_tags(tags: dict[str, str]) -> str | None:
 
 def element_to_feature(element: dict) -> dict | None:
     """Normaliza node/way/relation OSM para GeoJSON Point com atribuição."""
+    if not isinstance(element, dict):
+        return None
     element_type = element.get("type")
     element_id = element.get("id")
-    if element_type not in {"node", "way", "relation"} or not isinstance(element_id, int):
+    if element_type not in {"node", "way", "relation"} or isinstance(element_id, bool) or not isinstance(element_id, int) or element_id <= 0:
         return None
 
     tags = element.get("tags") or {}
@@ -116,8 +119,16 @@ def element_to_feature(element: dict) -> dict | None:
         latitude, longitude = element.get("lat"), element.get("lon")
     else:
         center = element.get("center") or {}
+        if not isinstance(center, dict):
+            return None
         latitude, longitude = center.get("lat"), center.get("lon")
-    if latitude is None or longitude is None:
+    try:
+        latitude, longitude = float(latitude), float(longitude)
+    except (TypeError, ValueError):
+        return None
+    if not isfinite(latitude) or not isfinite(longitude):
+        return None
+    if not -90 <= latitude <= 90 or not -180 <= longitude <= 180:
         return None
 
     source_ref = f"osm:{element_type}:{element_id}"
@@ -125,7 +136,7 @@ def element_to_feature(element: dict) -> dict | None:
         "type": "Feature",
         "geometry": {
             "type": "Point",
-            "coordinates": [float(longitude), float(latitude)],
+            "coordinates": [longitude, latitude],
         },
         "properties": {
             "name": name,
@@ -151,13 +162,12 @@ def to_feature_collection(payload: dict) -> dict:
 
     features_by_ref: dict[str, dict] = {}
     for element in elements:
-        if not isinstance(element, dict):
-            continue
         feature = element_to_feature(element)
         if feature is not None:
             features_by_ref[feature["properties"]["source_ref"]] = feature
 
-    timestamp = (payload.get("osm3s") or {}).get("timestamp_osm_base")
+    osm3s = payload.get("osm3s") or {}
+    timestamp = osm3s.get("timestamp_osm_base") if isinstance(osm3s, dict) else None
     return {
         "type": "FeatureCollection",
         "name": "Amazonia — pontos de interesse OpenStreetMap",
