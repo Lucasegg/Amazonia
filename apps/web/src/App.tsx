@@ -64,6 +64,7 @@ async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
     const detail = payload?.detail;
     throw new Error(typeof detail === "string" ? detail : `Falha na comunicação com a API (${response.status}).`);
   }
+  if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }
 
