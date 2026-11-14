@@ -65,7 +65,8 @@ function formatWorldTime(minutes: number): string {
 function App() {
   const [origins, setOrigins] = useState<Origin[]>([]);
   const [itemCatalog, setItemCatalog] = useState<InventoryItem[]>([]);
-  const [usingItem, setUsingItem] = useState(false);\n  const [resting, setResting] = useState(false);
+  const [usingItem, setUsingItem] = useState(false);
+  const [resting, setResting] = useState(false);
   const [campaignName, setCampaignName] = useState("Minha primeira campanha");
   const [characterName, setCharacterName] = useState("");
   const [selectedOrigin, setSelectedOrigin] = useState("bombeiro");
