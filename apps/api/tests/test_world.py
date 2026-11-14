@@ -1,6 +1,7 @@
 from app.domain.world import (
     HEX_RADIUS_METERS,
     apply_movement_needs,
+    apply_rest_needs,
     build_map_data,
     cell_center,
     hex_distance,
@@ -56,3 +57,13 @@ def test_movement_needs_are_capped_at_one_hundred():
 def test_movement_needs_fill_missing_fields_with_safe_defaults():
     updated = apply_movement_needs({})
     assert updated == {"hunger": 1, "thirst": 2, "fatigue": 1, "health": 100}
+
+
+def test_one_hour_rest_recovers_fatigue_and_costs_food_and_water():
+    updated = apply_rest_needs({"hunger": 10, "thirst": 20, "fatigue": 45, "health": 90})
+    assert updated == {"hunger": 16, "thirst": 30, "fatigue": 15, "health": 90}
+
+
+def test_rest_needs_are_bounded():
+    updated = apply_rest_needs({"hunger": 100, "thirst": 95, "fatigue": 10, "health": 100})
+    assert updated == {"hunger": 100, "thirst": 100, "fatigue": 0, "health": 100}
