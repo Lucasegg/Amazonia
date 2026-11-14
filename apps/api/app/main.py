@@ -49,6 +49,25 @@ app.add_middleware(
 )
 
 
+@app.middleware("http")
+async def enforce_browser_origin(request: Request, call_next):
+    """Bloqueia origens externas em operações mutáveis, inclusive login/cadastro."""
+    if request.method not in {"GET", "HEAD", "OPTIONS"}:
+        origin = request.headers.get("origin")
+        if origin:
+            allowed = {
+                item.strip()
+                for item in os.getenv(
+                    "AMAZONIA_CORS_ORIGINS",
+                    "http://localhost:5173,http://127.0.0.1:5173",
+                ).split(",")
+                if item.strip()
+            }
+            if origin not in allowed:
+                return JSONResponse(status_code=403, content={"detail": "Origem não autorizada."})
+    return await call_next(request)
+
+
 class CheckRequest(BaseModel):
     """Parâmetros de um teste; o D20 é produzido no servidor."""
     attribute_value: int = Field(ge=1, le=5)
@@ -143,6 +162,14 @@ def login(payload: LoginRequest, response: Response, db: Session = Depends(get_d
     if user is None or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status_code=401, detail="E-mail ou senha inválidos.", headers={"WWW-Authenticate": "Bearer"})
     set_session_cookies(response, user.id)\n    return {"user": user}
+
+
+@app.post("/api/v1/auth/logout", status_code=204, tags=["autenticacao"])
+def logout(response: Response) -> Response:
+    """Encerra a sessão removendo os cookies do navegador."""
+    clear_session_cookies(response)
+    response.status_code = 204
+    return response
 
 
 @app.get("/api/v1/auth/me", response_model=UserRead, tags=["autenticacao"])
