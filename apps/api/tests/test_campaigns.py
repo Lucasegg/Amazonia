@@ -1,3 +1,4 @@
+import os
 from collections.abc import Generator
 
 from fastapi.testclient import TestClient
@@ -30,7 +31,15 @@ def override_get_db() -> Generator:
 
 Base.metadata.create_all(bind=test_engine)
 app.dependency_overrides[get_db] = override_get_db
+os.environ["AMAZONIA_AUTH_SECRET"] = "ci-test-secret-not-for-production-000000000000000000000000"
 client = TestClient(app)
+registration = client.post("/api/v1/auth/register", json={
+    "email": "jogador@example.com",
+    "display_name": "Jogador de Teste",
+    "password": "Senha-forte-de-teste-2026",
+})
+assert registration.status_code == 201
+client.headers.update({"Authorization": f"Bearer {registration.json()['access_token']}"})
 
 
 def teardown_module():
@@ -255,3 +264,38 @@ def test_rest_action_recovers_fatigue_and_persists_time():
     persisted = client.get(f"/api/v1/campaigns/{campaign['id']}").json()
     assert persisted["character"]["needs"] == response.json()["needs"]
     assert persisted["world_time_minutes"] == 60
+
+
+def test_authentication_required_and_campaigns_are_isolated_by_owner():
+    """Exige token e impede que outra conta consulte campanha alheia."""
+    anonymous = TestClient(app)
+    denied = anonymous.post("/api/v1/campaigns", json={"name": "Sem sessão"})
+    assert denied.status_code == 401
+
+    owned = create_campaign("Campanha privada")
+    second = anonymous.post("/api/v1/auth/register", json={
+        "email": "outra-conta@example.com",
+        "display_name": "Outra Conta",
+        "password": "Outra-senha-forte-2026",
+    })
+    assert second.status_code == 201
+    anonymous.headers.update({"Authorization": f"Bearer {second.json()['access_token']}"})
+
+    assert anonymous.get("/api/v1/campaigns").status_code == 200
+    assert anonymous.get("/api/v1/campaigns").json() == []
+    assert anonymous.get(f"/api/v1/campaigns/{owned['id']}").status_code == 404
+    assert anonymous.post(f"/api/v1/campaigns/{owned['id']}/rest").status_code == 404
+
+
+def test_login_normalizes_email_and_rejects_invalid_password():
+    """Aceita e-mail normalizado e não revela credenciais inválidas."""
+    response = TestClient(app).post("/api/v1/auth/login", json={
+        "email": " JOGADOR@EXAMPLE.COM ",
+        "password": "Senha-forte-de-teste-2026",
+    })
+    assert response.status_code == 200
+    invalid = TestClient(app).post("/api/v1/auth/login", json={
+        "email": "jogador@example.com",
+        "password": "senha-incorreta",
+    })
+    assert invalid.status_code == 401
