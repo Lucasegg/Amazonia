@@ -2,6 +2,7 @@
 from __future__ import annotations
 import hashlib
 import hmac
+import secrets
 import os
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -11,7 +12,7 @@ from pwdlib import PasswordHash
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.models import AuthAttempt, User
+from app.models import AccountToken, AuthAttempt, User
 
 _password_hash = PasswordHash.recommended()
 _TOKEN_LIFETIME = timedelta(hours=12)
@@ -128,4 +129,45 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
     user = db.get(User, user_id)
     if user is None or user.session_version != version:
         raise unauthorized
+    return user
+
+
+def create_account_token(db: Session, user: User, purpose: str, lifetime: timedelta) -> str:
+    """Cria token aleatório de uso único; somente o hash SHA-256 é persistido."""
+    raw = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(raw.encode()).hexdigest()
+    now = datetime.now(timezone.utc)
+    db.query(AccountToken).filter(
+        AccountToken.user_id == user.id,
+        AccountToken.purpose == purpose,
+        AccountToken.used_at.is_(None),
+    ).update({"used_at": now}, synchronize_session=False)
+    db.add(AccountToken(
+        user_id=user.id,
+        token_hash=token_hash,
+        purpose=purpose,
+        expires_at=now + lifetime,
+        created_at=now,
+    ))
+    db.commit()
+    return raw
+
+
+def consume_account_token(db: Session, raw: str, purpose: str) -> User | None:
+    """Consome atomicamente token não expirado e de uso único."""
+    token_hash = hashlib.sha256(raw.encode()).hexdigest()
+    now = datetime.now(timezone.utc)
+    token = db.query(AccountToken).filter(
+        AccountToken.token_hash == token_hash,
+        AccountToken.purpose == purpose,
+        AccountToken.used_at.is_(None),
+        AccountToken.expires_at > now,
+    ).with_for_update().first()
+    if token is None:
+        return None
+    user = db.get(User, token.user_id)
+    if user is None:
+        return None
+    token.used_at = now
+    db.flush()
     return user
