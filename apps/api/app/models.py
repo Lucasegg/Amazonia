@@ -4,13 +4,14 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from sqlalchemy import DateTime, ForeignKey, JSON, String, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKey, JSON, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 
 
 def utc_now() -> datetime:
+    """Retorna instante UTC para auditoria dos registros."""
     return datetime.now(timezone.utc)
 
 
@@ -20,7 +21,7 @@ class Campaign(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
     name: Mapped[str] = mapped_column(String(80), nullable=False)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
-    world_time_minutes: Mapped[int] = mapped_column(nullable=False, default=0)
+    world_time_minutes: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
 
@@ -45,6 +46,9 @@ class Character(Base):
     needs: Mapped[dict[str, int]] = mapped_column(
         JSON, nullable=False, default=lambda: {"hunger": 0, "thirst": 0, "fatigue": 0, "health": 100}
     )
+    position_q: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    position_r: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    discovered_cells: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=lambda: ["0:0"])
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
 
     campaign: Mapped[Campaign] = relationship(back_populates="character")
