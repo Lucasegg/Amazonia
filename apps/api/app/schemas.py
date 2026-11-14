@@ -23,6 +23,7 @@ class LoginRequest(BaseModel):
         return value.strip().lower()
 
 class UserRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
     id: str
     email: str
     display_name: str
