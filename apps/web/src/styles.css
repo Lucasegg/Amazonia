@@ -93,3 +93,8 @@ footer { display: flex; justify-content: space-between; gap: 18px; padding: 22px
 .inventory-row button { flex: 0 0 auto; padding: 9px 12px; border: 1px solid #78945d; background: #263a29; color: var(--green); font: 9px ui-monospace, monospace; letter-spacing: .1em; cursor: pointer; }
 .inventory-row button:hover:not(:disabled) { background: #344b34; }
 .inventory-row button:disabled { opacity: .45; cursor: wait; }
+
+
+.rest-button { width: 100%; margin-top: 20px; padding: 12px; border: 1px solid #78945d; background: #1d2c20; color: var(--green); font: 9px ui-monospace, monospace; letter-spacing: .12em; cursor: pointer; }
+.rest-button:hover:not(:disabled) { background: #30452f; }
+.rest-button:disabled { opacity: .45; cursor: wait; }
