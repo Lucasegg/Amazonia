@@ -1,5 +1,6 @@
 import os
 import re
+from datetime import datetime, timezone
 import pytest
 from collections.abc import Generator
 
@@ -321,7 +322,7 @@ def test_second_account_cannot_access_character_map_inventory_or_movement():
         "display_name": "Conta Isolada",
         "password": "Senha-forte-isolamento-2026",
     })
-    assert second.status_code == 201
+    assert second.status_code == 202
     second_client.headers.update({
     })
 
@@ -502,7 +503,7 @@ def test_password_reset_token_is_single_use_and_revokes_existing_sessions(monkey
     assert registration.status_code == 202
     with TestingSessionLocal() as session:
         user = session.query(User).filter(User.email == "reset-amazonia@example.com").one()
-        user.email_verified_at = __import__("datetime").datetime.now(__import__("datetime").timezone.utc)
+        user.email_verified_at = datetime.now(timezone.utc)
         session.commit()
     requested = browser.post("/api/v1/auth/forgot-password", json={"email": "reset-amazonia@example.com"})
     assert requested.status_code == 202
