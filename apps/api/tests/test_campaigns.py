@@ -5,6 +5,7 @@ import pytest
 from collections.abc import Generator
 
 from fastapi.testclient import TestClient
+from fastapi import HTTPException
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -13,7 +14,7 @@ from app.database import Base, get_db
 from app.main import app
 import app.main as main_module
 from app import models  # noqa: F401
-from app.models import AuthAttempt, PointOfInterest, User
+from app.models import AccountToken, AuthAttempt, PointOfInterest, User
 
 
 test_engine = create_engine(
@@ -563,3 +564,27 @@ def test_character_rejects_appearance_outside_catalog():
         "appearance": {"hair_style": "qualquer-coisa"},
     })
     assert response.status_code == 422
+
+
+def test_registration_reports_email_delivery_failure_and_keeps_resendable_account(monkeypatch):
+    """Falha SMTP informa estado real sem perder a conta nem o token de reenvio."""
+    monkeypatch.setenv("AMAZONIA_REQUIRE_EMAIL_VERIFICATION", "true")
+    monkeypatch.setattr(main_module, "send_account_email", lambda *args: (_ for _ in ()).throw(
+        HTTPException(status_code=503, detail="SMTP indisponível.")
+    ))
+    browser = TestClient(app)
+    response = browser.post("/api/v1/auth/register", json={
+        "email": "smtp-failure@example.com",
+        "display_name": "SMTP Failure",
+        "password": "Senha-smtp-segura-2026",
+    })
+    assert response.status_code == 503
+    assert "Conta criada" in response.json()["detail"]
+    with TestingSessionLocal() as session:
+        user = session.query(User).filter(User.email == "smtp-failure@example.com").one()
+        token = session.query(AccountToken).filter(
+            AccountToken.user_id == user.id,
+            AccountToken.purpose == "verify_email",
+            AccountToken.used_at.is_(None),
+        ).one()
+        assert token.expires_at is not None
