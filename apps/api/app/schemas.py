@@ -51,3 +51,7 @@ class CampaignRead(BaseModel):
     status: str
     world_time_minutes: int
     character: CharacterRead | None = None
+
+
+class UseItemRequest(BaseModel):
+    item_id: str = Field(min_length=1, max_length=80)

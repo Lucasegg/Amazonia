@@ -9,6 +9,7 @@ from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.domain.inventory import ITEMS, InventoryRuleError, consume_item
 from app.domain.rules import ORIGINS, Origin, RuleValidationError, resolve_check
 from app.domain.world import (
     MAX_CELL_COORDINATE,
@@ -19,7 +20,7 @@ from app.domain.world import (
     hex_distance,
 )
 from app.models import Campaign, Character, PointOfInterest
-from app.schemas import CampaignCreate, CampaignRead, CharacterCreate, CharacterRead, MoveRequest
+from app.schemas import CampaignCreate, CampaignRead, CharacterCreate, CharacterRead, MoveRequest, UseItemRequest
 
 app = FastAPI(
     title="Amazonia API",
@@ -169,6 +170,60 @@ def create_character(
     db.commit()
     db.refresh(character)
     return character
+
+
+@app.get("/api/v1/game/items", tags=["inventario"])
+def list_items() -> list[dict[str, object]]:
+    """Lista os itens consumíveis conhecidos pelo protótipo."""
+    return [
+        {
+            "id": item.id,
+            "label": item.label,
+            "description": item.description,
+            "hunger_recovery": item.hunger_recovery,
+            "thirst_recovery": item.thirst_recovery,
+            "time_cost_minutes": item.time_cost_minutes,
+        }
+        for item in ITEMS.values()
+    ]
+
+
+@app.post("/api/v1/campaigns/{campaign_id}/inventory/use", tags=["inventario"])
+def use_inventory_item(
+    campaign_id: str,
+    payload: UseItemRequest,
+    db: Session = Depends(get_db),
+) -> dict[str, object]:
+    """Consome uma unidade do inventário e persiste seus efeitos atomicamente."""
+    campaign = db.get(Campaign, campaign_id)
+    if campaign is None:
+        raise HTTPException(status_code=404, detail="Campanha não encontrada.")
+    character = campaign.character
+    if character is None:
+        raise HTTPException(status_code=409, detail="Crie o personagem antes de usar itens.")
+
+    try:
+        inventory, needs, time_cost = consume_item(
+            list(character.inventory or []),
+            dict(character.needs or {}),
+            payload.item_id,
+        )
+    except InventoryRuleError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    character.inventory = inventory
+    character.needs = needs
+    campaign.world_time_minutes += time_cost
+    db.commit()
+    db.refresh(campaign)
+    db.refresh(character)
+    return {
+        "inventory": character.inventory,
+        "needs": character.needs,
+        "world_time_minutes": campaign.world_time_minutes,
+        "consumed_item": payload.item_id,
+        "time_cost_minutes": time_cost,
+    }
 
 
 def _visible_points_of_interest(db: Session, character: Character) -> list[PointOfInterest]:
