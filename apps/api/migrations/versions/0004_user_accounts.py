@@ -1,6 +1,5 @@
 """Create user accounts and assign campaign ownership."""
 from typing import Sequence, Union
-
 from alembic import op
 import sqlalchemy as sa
 
@@ -20,16 +19,17 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.UniqueConstraint("email", name="uq_users_email"),
     )
-    op.add_column("campaigns", sa.Column("user_id", sa.String(length=36), nullable=True))
-    op.create_foreign_key(
-        "fk_campaigns_user_id_users", "campaigns", "users", ["user_id"], ["id"], ondelete="CASCADE"
-    )
+    with op.batch_alter_table("campaigns", recreate="auto") as batch:
+        batch.add_column(sa.Column("user_id", sa.String(length=36), nullable=True))
+        batch.create_foreign_key(
+            "fk_campaigns_user_id_users", "users", ["user_id"], ["id"], ondelete="CASCADE"
+        )
     op.create_index("ix_campaigns_user_id", "campaigns", ["user_id"])
-    # Existing anonymous campaigns cannot be safely assigned to an account automatically.
 
 
 def downgrade() -> None:
     op.drop_index("ix_campaigns_user_id", table_name="campaigns")
-    op.drop_constraint("fk_campaigns_user_id_users", "campaigns", type_="foreignkey")
-    op.drop_column("campaigns", "user_id")
+    with op.batch_alter_table("campaigns", recreate="auto") as batch:
+        batch.drop_constraint("fk_campaigns_user_id_users", type_="foreignkey")
+        batch.drop_column("user_id")
     op.drop_table("users")
