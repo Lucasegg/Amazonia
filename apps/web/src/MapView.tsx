@@ -12,7 +12,7 @@ import type { MapCell, MapData, MapPointOfInterest } from "./types";
 const INITIAL_VIEW: [number, number] = [-46.6333, -23.5505];
 
 type CellProperties = Pick<MapCell, "q" | "r" | "discovered" | "current" | "adjacent">;
-type PoiProperties = Pick<MapPointOfInterest, "id" | "name" | "category">;
+type PoiProperties = Pick<MapPointOfInterest, "id" | "name" | "category" | "source" | "source_license">;
 
 function cellsToGeoJSON(cells: MapCell[]): FeatureCollection<Polygon, CellProperties> {
   const features: Feature<Polygon, CellProperties>[] = cells.map((cell) => {
@@ -44,7 +44,7 @@ function cellsToGeoJSON(cells: MapCell[]): FeatureCollection<Polygon, CellProper
 function poisToGeoJSON(pois: MapPointOfInterest[]): FeatureCollection<Point, PoiProperties> {
   const features: Feature<Point, PoiProperties>[] = pois.map((poi) => ({
     type: "Feature",
-    properties: { id: poi.id, name: poi.name, category: poi.category },
+    properties: { id: poi.id, name: poi.name, category: poi.category, source: poi.source, source_license: poi.source_license },
     geometry: { type: "Point", coordinates: [poi.longitude, poi.latitude] },
   }));
   return { type: "FeatureCollection", features };
@@ -151,7 +151,7 @@ function MapView({ mapData, onMove }: MapViewProps) {
         if (!properties) return;
         new Popup({ closeButton: true, closeOnClick: true })
           .setLngLat(event.lngLat)
-          .setText(`${String(properties.name)} · ${String(properties.category)}`)
+          .setText(`${String(properties.name)} · ${String(properties.category)} · ${String(properties.source)} (${String(properties.source_license)})`)
           .addTo(map);
       });
       map.on("mouseenter", "game-cells-fill", () => {
