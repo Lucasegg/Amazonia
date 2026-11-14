@@ -69,6 +69,21 @@ def test_way_uses_overpass_center_for_point_geometry():
     assert feature["properties"]["source_ref"] == "osm:way:987"
 
 
+@pytest.mark.parametrize(
+    "element",
+    [
+        {"type": "node", "id": 3, "lat": 91, "lon": 0, "tags": {"name": "Local", "amenity": "clinic"}},
+        {"type": "node", "id": 4, "lat": 0, "lon": 181, "tags": {"name": "Local", "amenity": "clinic"}},
+        {"type": "node", "id": 5, "lat": float("nan"), "lon": 0, "tags": {"name": "Local", "amenity": "clinic"}},
+        {"type": "node", "id": 6, "lat": "inválida", "lon": 0, "tags": {"name": "Local", "amenity": "clinic"}},
+        {"type": "way", "id": 7, "center": [], "tags": {"name": "Local", "amenity": "clinic"}},
+        {"type": "node", "id": True, "lat": 0, "lon": 0, "tags": {"name": "Local", "amenity": "clinic"}},
+    ],
+)
+def test_invalid_osm_elements_are_skipped(element):
+    assert element_to_feature(element) is None
+
+
 def test_unnamed_or_uncategorized_elements_are_skipped():
     assert element_to_feature({
         "type": "node", "id": 1, "lat": -23.55, "lon": -46.63,
