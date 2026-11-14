@@ -14,11 +14,15 @@ Configure no projeto Vercel `api`:
 | --- | --- | --- |
 | `DATABASE_URL` | URL pooled do banco Neon `amazonia` no ambiente de homologação | URL pooled do banco Neon de produção |
 | `AMAZONIA_AUTH_SECRET` | Segredo aleatório exclusivo, mínimo 32 caracteres | Outro segredo aleatório exclusivo |
-| `AMAZONIA_CORS_ORIGINS` | URL exata do preview Web, sem barra final | Domínio definitivo do Web |\n| `AMAZONIA_COOKIE_SECURE` | `true` | `true` |\n| `AMAZONIA_COOKIE_SAMESITE` | `none` para Web/API em hosts Vercel distintos | `none` se Web/API permanecerem em sites distintos; `lax` se estiverem sob o mesmo site |
+| `AMAZONIA_CORS_ORIGINS` | URL exata do preview Web, sem barra final | Domínio definitivo do Web |
+| `AMAZONIA_COOKIE_SECURE` | `true` | `true` |
+| `AMAZONIA_COOKIE_SAMESITE` | `none` para Web/API em hosts Vercel distintos | `none` se Web/API permanecerem em sites distintos; `lax` se estiverem sob o mesmo site |
 
 Gere um segredo localmente com `openssl rand -hex 32`. Não reutilize o segredo da CI, não o coloque no Git e não o envie em mensagens. Use o tipo Sensitive/Encrypted no painel da Vercel.
 
-O backend usa PostgreSQL com o driver psycopg. Prefira a URL pooled fornecida pelo Neon para tráfego da aplicação.\n\nA autenticação usa cookie de sessão `HttpOnly` e cookie CSRF separado. Como os hosts `web-*.vercel.app` e `api-*.vercel.app` podem ser tratados como sites distintos pelo navegador, a configuração de preview exige `Secure=true` e `SameSite=none`. Isso requer HTTPS. A lista CORS deve conter a origem Web exata; nunca use `*` com credenciais. A disponibilidade de cookies de terceiros varia por navegador, portanto o teste real do fluxo no preview continua obrigatório.
+O backend usa PostgreSQL com o driver psycopg. Prefira a URL pooled fornecida pelo Neon para tráfego da aplicação.
+
+A autenticação usa cookie de sessão `HttpOnly` e cookie CSRF separado. Como os hosts `web-*.vercel.app` e `api-*.vercel.app` podem ser tratados como sites distintos pelo navegador, a configuração de preview exige `Secure=true` e `SameSite=none`. Isso requer HTTPS. A lista CORS deve conter a origem Web exata; nunca use `*` com credenciais. A disponibilidade de cookies de terceiros varia por navegador, portanto o teste real do fluxo no preview continua obrigatório.
 
 ## Variáveis da Web
 
