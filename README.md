@@ -6,6 +6,7 @@ RPG de sobrevivência e narrativa ambientado inicialmente na Grande São Paulo, 
 
 - Fase 0: visão, regras fundamentais e blueprint técnico documentados.
 - Sprint 1: motor determinístico, API, persistência inicial e interface de criação de campanha/personagem.
+- Sprint 2: primeira visualização cartográfica interativa, ainda sem movimentação ou pontos de interesse jogáveis.
 - Experiência inicial: campanha individual, mapa 2D e narrativa textual.
 - A IA será narradora; não controla dados, atributos, inventário ou estado persistido.
 
@@ -13,7 +14,7 @@ RPG de sobrevivência e narrativa ambientado inicialmente na Grande São Paulo, 
 
 - `docs/`: design, regras e arquitetura.
 - `apps/api/`: API FastAPI, domínio, modelos SQLAlchemy e migrações Alembic.
-- `apps/web/`: interface React + TypeScript + Vite.
+- `apps/web/`: interface React + TypeScript + Vite e mapa MapLibre.
 - `.github/workflows/ci.yml`: testes, migrações e build da interface.
 
 ## Executar localmente
@@ -48,6 +49,12 @@ A interface fica em `http://localhost:5173`. Se a API estiver em outro endereço
 
 O banco padrão é SQLite local. PostgreSQL pode ser usado por meio de `DATABASE_URL`. Nenhum serviço remoto é provisionado automaticamente.
 
+## Mapa e dados cartográficos
+
+O mapa de referência usa MapLibre GL JS e tiles raster do OpenStreetMap apenas durante o protótipo local. A atribuição é exibida no mapa. Não há pré-carregamento em massa, nem garantia de disponibilidade ou uso ilimitado. Antes de publicar o jogo, será escolhido um provedor compatível com o volume e os termos de uso.
+
+O centro visual do mapa é uma referência da cidade de São Paulo; não representa a posição inicial do personagem. A aplicação não solicita GPS.
+
 ## Testes e build
 
 ```bash
@@ -71,4 +78,4 @@ npm run build
 - `GET /api/v1/campaigns/{campaign_id}`
 - `POST /api/v1/campaigns/{campaign_id}/character`
 
-O mapa interativo, movimentação, exploração e integração de IA ainda serão implementados nas próximas etapas.
+Movimentação, descoberta de locais, ameaças e integração de IA serão implementadas em etapas próprias.
