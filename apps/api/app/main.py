@@ -152,7 +152,8 @@ def register(payload: RegisterRequest, response: Response, db: Session = Depends
         db.rollback()
         raise HTTPException(status_code=409, detail="Este e-mail já possui uma conta.") from exc
     db.refresh(user)
-    set_session_cookies(response, user.id)\n    return {"user": user}
+    set_session_cookies(response, user.id)
+    return {"user": user}
 
 
 @app.post("/api/v1/auth/login", response_model=AuthResponse, tags=["autenticacao"])
@@ -161,7 +162,8 @@ def login(payload: LoginRequest, response: Response, db: Session = Depends(get_d
     user = db.query(User).filter(User.email == payload.email).first()
     if user is None or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status_code=401, detail="E-mail ou senha inválidos.", headers={"WWW-Authenticate": "Bearer"})
-    set_session_cookies(response, user.id)\n    return {"user": user}
+    set_session_cookies(response, user.id)
+    return {"user": user}
 
 
 @app.post("/api/v1/auth/logout", status_code=204, tags=["autenticacao"])
