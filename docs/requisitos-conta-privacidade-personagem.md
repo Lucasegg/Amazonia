@@ -92,3 +92,17 @@ Dependência geográfica: o protótipo atual usa centro fixo em São Paulo e uma
 - O servidor sorteia um spawn válido e reproduzível para a campanha.
 - CI cobre autenticação, abuso, isolamento, privacidade e sorteio.
 - Nenhum deploy público antes da revisão de segurança, configuração de segredos e validação jurídica/privacidade.
+
+
+## 6. Conta proprietária da plataforma
+
+O projeto terá uma função global `owner` para o responsável pelo Amazonia, separada de papéis comuns de jogador e de permissões de campanha.
+
+- A conta proprietária inicial será provisionada por configuração operacional explícita (`AMAZONIA_OWNER_EMAIL`) e somente após verificação de posse do endereço.
+- Nunca conceder `owner` apenas porque alguém digitou o e-mail durante o cadastro.
+- A promoção inicial deve ser idempotente, auditada e executada por bootstrap controlado; não permitir autoelevação via API pública.
+- O owner terá acesso administrativo global aos recursos da plataforma, suporte e gestão de contas, mas toda consulta/alteração deverá respeitar finalidade, menor privilégio operacional e trilha de auditoria.
+- Exigir MFA para operações administrativas quando o mecanismo de identidade estiver disponível; não permitir credenciais administrativas compartilhadas.
+- Não expor dados privados de jogadores em ferramentas de administração além do necessário para suporte e segurança.
+- A conta owner não será usada como personagem ou conta de teste compartilhada; o usuário deverá poder jogar normalmente com sua conta e campanhas privadas.
+- A conta deve poder recuperar acesso com segurança e manter registro de sessões/dispositivos e eventos administrativos.
