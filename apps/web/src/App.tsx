@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import MapView from "./MapView";
+import type { MapData } from "./types";
 
 const API_BASE = (import.meta.env.VITE_API_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
 
@@ -20,6 +21,9 @@ type Character = {
   skills: Record<string, number>;
   inventory: string[];
   needs: Record<string, number>;
+  position_q: number;
+  position_r: number;
+  discovered_cells: string[];
 };
 
 type Campaign = {
@@ -29,6 +33,15 @@ type Campaign = {
   world_time_minutes: number;
   character: Character | null;
 };
+
+const DIRECTIONS = [
+  { label: "N", q: 0, r: -1 },
+  { label: "NE", q: 1, r: -1 },
+  { label: "SE", q: 1, r: 0 },
+  { label: "S", q: 0, r: 1 },
+  { label: "SW", q: -1, r: 1 },
+  { label: "NW", q: -1, r: 0 },
+];
 
 async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
@@ -43,13 +56,21 @@ async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+function formatWorldTime(minutes: number): string {
+  const hours = Math.floor(minutes / 60).toString().padStart(2, "0");
+  const remainder = (minutes % 60).toString().padStart(2, "0");
+  return `${hours}h ${remainder}m`;
+}
+
 function App() {
   const [origins, setOrigins] = useState<Origin[]>([]);
   const [campaignName, setCampaignName] = useState("Minha primeira campanha");
   const [characterName, setCharacterName] = useState("");
   const [selectedOrigin, setSelectedOrigin] = useState("bombeiro");
   const [campaign, setCampaign] = useState<Campaign | null>(null);
+  const [mapData, setMapData] = useState<MapData | null>(null);
   const [loading, setLoading] = useState(false);
+  const [moving, setMoving] = useState(false);
   const [error, setError] = useState("");
   const [apiReady, setApiReady] = useState(false);
 
@@ -99,10 +120,29 @@ function App() {
         body: JSON.stringify({ name: characterName, origin: selectedOrigin }),
       });
       setCampaign({ ...campaign, character });
+      const initialMap = await apiRequest<MapData>(`/api/v1/campaigns/${campaign.id}/map`);
+      setMapData(initialMap);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível criar o personagem.");
+      setError(err instanceof Error ? err.message : "Não foi possível preparar a exploração.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleMove(targetQ: number, targetR: number) {
+    if (!campaign || !mapData || moving) return;
+    setError("");
+    setMoving(true);
+    try {
+      const nextMap = await apiRequest<MapData>(`/api/v1/campaigns/${campaign.id}/move`, {
+        method: "POST",
+        body: JSON.stringify({ target_q: targetQ, target_r: targetR }),
+      });
+      setMapData(nextMap);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Movimento não permitido.");
+    } finally {
+      setMoving(false);
     }
   }
 
@@ -180,9 +220,34 @@ function App() {
             </div>
           </article>
           <article className="map-card">
-            <div className="section-kicker">MAPA DE EXPLORAÇÃO</div>
-            <MapView />
-            <div className="map-note">Mapa de referência centralizado na cidade de São Paulo. A posição inicial do personagem ainda não foi definida; nenhum GPS é solicitado. Os tiles públicos do OpenStreetMap são usados apenas no protótipo de desenvolvimento, com atribuição visível.</div>
+            <div className="section-kicker">MAPA DE EXPLORAÇÃO · GRADE HEXAGONAL</div>
+            <MapView mapData={mapData} onMove={handleMove} />
+            {mapData && (
+              <>
+                <div className="map-meta">
+                  <span>CÉLULA {mapData.player_position.q}:{mapData.player_position.r}</span>
+                  <span>TEMPO DO MUNDO {formatWorldTime(mapData.world_time_minutes)}</span>
+                </div>
+                <div className="move-controls" aria-label="Mover para célula adjacente">
+                  {DIRECTIONS.map((direction) => (
+                    <button
+                      key={direction.label}
+                      type="button"
+                      disabled={moving}
+                      onClick={() => handleMove(mapData.player_position.q + direction.q, mapData.player_position.r + direction.r)}
+                    >
+                      {direction.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="map-legend">
+                  <span><i className="legend-current" /> POSIÇÃO ATUAL</span>
+                  <span><i className="legend-known" /> DESCOBERTO</span>
+                  <span><i className="legend-unknown" /> NÃO EXPLORADO</span>
+                </div>
+              </>
+            )}
+            <div className="map-note">Cada movimento válido avança 10 minutos no relógio do mundo. O servidor valida a adjacência e registra a descoberta. A célula inicial é provisória e não usa GPS.</div>
           </article>
           <article className="story-card">
             <div className="section-kicker">DIÁRIO DE SOBREVIVÊNCIA</div>
