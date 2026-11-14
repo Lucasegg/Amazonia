@@ -69,6 +69,7 @@ class Character(Base):
     name: Mapped[str] = mapped_column(String(80), nullable=False)
     origin: Mapped[str] = mapped_column(String(40), nullable=False)
     attributes: Mapped[dict[str, int]] = mapped_column(JSON, nullable=False)
+    appearance: Mapped[dict[str, str]] = mapped_column(JSON, nullable=False, default=dict)
     skills: Mapped[dict[str, int]] = mapped_column(JSON, nullable=False)
     inventory: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
     needs: Mapped[dict[str, int]] = mapped_column(JSON, nullable=False, default=lambda: {"hunger": 0, "thirst": 0, "fatigue": 0, "health": 100})
