@@ -61,12 +61,13 @@ def get_current_user(
     )
     if credentials is None or credentials.scheme.lower() != "bearer":
         raise unauthorized
+    secret = _secret()
     try:
-        payload = jwt.decode(credentials.credentials, _secret(), algorithms=["HS256"])
+        payload = jwt.decode(credentials.credentials, secret, algorithms=["HS256"])
         user_id = payload.get("sub")
         if not isinstance(user_id, str) or not user_id:
             raise unauthorized
-    except (jwt.InvalidTokenError, HTTPException):
+    except jwt.InvalidTokenError:
         raise unauthorized
     user = db.get(User, user_id)
     if user is None:
