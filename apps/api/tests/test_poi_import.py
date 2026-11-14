@@ -32,6 +32,22 @@ def test_parse_feature_assigns_osm_source_and_hex_cell():
     assert result["tags"]["amenity"] == "clinic"
 
 
+@pytest.mark.parametrize("category", ["water", "park"])
+def test_parse_feature_accepts_new_world_categories(category):
+    feature = {
+        "type": "Feature",
+        "geometry": {"type": "Point", "coordinates": [-46.6333, -23.5505]},
+        "properties": {
+            "name": "Ponto de referência",
+            "category": category,
+            "source_ref": "osm:node:555",
+        },
+    }
+    result = parse_feature(feature)
+    assert result is not None
+    assert result["category"] == category
+
+
 def test_parse_feature_preserves_geosampa_cc_by_sa_license():
     feature = {
         "type": "Feature",

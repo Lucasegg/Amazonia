@@ -17,7 +17,7 @@ from app.models import PointOfInterest
 
 ALLOWED_CATEGORIES = {
     "healthcare", "police", "fire_station", "pharmacy", "food", "fuel",
-    "shelter", "school", "transport", "market", "other",
+    "shelter", "school", "transport", "market", "water", "park", "other",
 }
 
 
