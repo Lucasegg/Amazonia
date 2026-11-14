@@ -4,7 +4,7 @@ import type { InventoryItem, MapData } from "./types";
 
 const API_BASE = (import.meta.env.VITE_API_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
 type Account = { id: string; email: string; display_name: string };
-type AuthResponse = { user: Account };
+type AuthResponse = { user: Account; csrf_token: string };
 
 type Origin = {
   id: string;
