@@ -6,12 +6,12 @@ RPG de sobrevivência e narrativa ambientado inicialmente na Grande São Paulo, 
 
 - Fase 0: visão, regras fundamentais e blueprint técnico documentados.
 - Sprint 1: motor determinístico, API, campanhas, personagens e interface web inicial.
-- Sprint 2: primeira visualização cartográfica interativa, ainda sem movimentação ou pontos de interesse jogáveis.
+- Sprint 2: mapa interativo com grade hexagonal, descoberta de células e movimentação validada no servidor.
 - A experiência é individual e textual; a IA será narradora, nunca autoridade sobre regras ou estado persistido.
 
 ## Estrutura
 
-- docs/: design, regras, arquitetura e ambientes.
+- docs/: design, regras, arquitetura, ambientes e especificação de mapa/movimento.
 - apps/api/: API FastAPI, domínio, modelos SQLAlchemy e migrações Alembic.
 - apps/web/: React + TypeScript + Vite + MapLibre.
 - .github/workflows/ci.yml: testes, migrações, auditoria e build.
@@ -39,11 +39,13 @@ Requer Python 3.11 ou superior. Configure DATABASE_URL com a conexão do ambient
 
 Defina VITE_API_URL com a origem da API. Para permitir a interface no CORS, configure AMAZONIA_CORS_ORIGINS com a origem exata, por exemplo http://localhost:5173.
 
-## Mapa e dados cartográficos
+## Mapa e movimentação
 
-O mapa de referência usa MapLibre GL JS e tiles raster do OpenStreetMap apenas durante o protótipo local. A atribuição é exibida no mapa. Não há pré-carregamento em massa, nem garantia de disponibilidade ou uso ilimitado. Antes de publicar o jogo, será escolhido um provedor compatível com o volume e os termos de uso.
+O mapa de referência usa MapLibre GL JS e tiles raster do OpenStreetMap apenas durante o protótipo. A atribuição é exibida no mapa. Não há pré-carregamento em massa, nem garantia de disponibilidade ou uso ilimitado. Antes de publicar o jogo, será escolhido um provedor compatível com o volume esperado e seus termos.
 
-O centro visual do mapa é uma referência da cidade de São Paulo; não representa a posição inicial do personagem. A aplicação não solicita GPS.
+A grade inicial usa hexágonos com raio de 500 metros. Cada movimento adjacente, validado no servidor, avança 10 minutos no relógio do mundo e registra a nova célula como descoberta. Células não descobertas não revelam terreno ou pontos de interesse.
+
+A célula (0, 0) fica ancorada provisoriamente no centro geográfico aproximado de São Paulo (-23.5505, -46.6333). É apenas uma origem de teste do protótipo, não a localização narrativa definitiva. A aplicação não solicita GPS.
 
 ## Testes
 
