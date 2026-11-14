@@ -141,3 +141,24 @@ def test_map_and_move_are_validated_by_server():
     current = client.get(f"/api/v1/campaigns/{campaign['id']}/map").json()
     assert current["player_position"]["q"] == 1
     assert current["world_time_minutes"] == 10
+
+
+def test_pois_are_revealed_only_with_their_discovered_cells():
+    """POIs reais aparecem somente depois de a célula que os contém ser descoberta."""
+    campaign = create_campaign("Pontos de interesse")
+    create_character(campaign["id"])
+
+    initial_map = client.get(f"/api/v1/campaigns/{campaign['id']}/map").json()
+    initial_ids = {poi["id"] for poi in initial_map["points_of_interest"]}
+    assert initial_ids == {"praca_se", "pateo_do_colegio"}
+    assert "mercado_municipal" not in initial_ids
+    assert "masp" not in initial_ids
+
+    moved = client.post(
+        f"/api/v1/campaigns/{campaign['id']}/move",
+        json={"target_q": 0, "target_r": 1},
+    )
+    assert moved.status_code == 200
+    revealed_ids = {poi["id"] for poi in moved.json()["points_of_interest"]}
+    assert {"mercado_municipal", "parque_dom_pedro_ii"}.issubset(revealed_ids)
+    assert "masp" not in revealed_ids
