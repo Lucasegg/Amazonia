@@ -45,21 +45,17 @@ const DIRECTIONS = [
   { label: "NW", q: -1, r: 0 },
 ];
 
-function readCookie(name: string): string | null {
-  const prefix = name + "=";
-  const entry = document.cookie.split("; ").find((item) => item.startsWith(prefix));
-  return entry ? decodeURIComponent(entry.slice(prefix.length)) : null;
-}
+let csrfToken: string | null = null;
 
 async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
   const method = (init?.method || "GET").toUpperCase();
-  const csrfToken = method === "GET" || method === "HEAD" ? null : readCookie("amazonia_csrf");
+  const requestCsrfToken = method === "GET" || method === "HEAD" ? null : csrfToken;
   const response = await fetch(`${API_BASE}${path}`, {
     ...init,
     credentials: "include",
     headers: {
       "Content-Type": "application/json",
-      ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
+      ...(requestCsrfToken ? { "X-CSRF-Token": requestCsrfToken } : {}),
       ...init?.headers,
     },
   });
@@ -101,7 +97,8 @@ function App() {
 
   useEffect(() => {
     let active = true;
-    apiRequest<Account>("/api/v1/auth/me")
+    apiRequest<{ csrf_token: string }>("/api/v1/auth/csrf")
+      .then((csrf) => { csrfToken = csrf.csrf_token; return apiRequest<Account>("/api/v1/auth/me"); })
       .then(async (user) => {
         if (!active) return;
         setAccount(user);
@@ -129,6 +126,7 @@ function App() {
       const path = authMode === "register" ? "/api/v1/auth/register" : "/api/v1/auth/login";
       const payload = authMode === "register" ? { email, password, display_name: displayName } : { email, password };
       const result = await apiRequest<AuthResponse>(path, { method: "POST", body: JSON.stringify(payload) });
+      csrfToken = result.csrf_token;
       setAccount(result.user);
       const [items, catalog, campaigns] = await Promise.all([apiRequest<Origin[]>("/api/v1/game/origins"), apiRequest<InventoryItem[]>("/api/v1/game/items"), apiRequest<Campaign[]>("/api/v1/campaigns")]);
       setOrigins(items); setItemCatalog(catalog); setSavedCampaigns(campaigns); setApiReady(true);
@@ -138,7 +136,7 @@ function App() {
   }
 
   async function handleLogout() {
-    try { await apiRequest<void>("/api/v1/auth/logout", { method: "POST" }); } finally { setAccount(null); setCampaign(null); setMapData(null); setSavedCampaigns([]); setApiReady(false); }
+    try { await apiRequest<void>("/api/v1/auth/logout", { method: "POST" }); } finally { csrfToken = null; setAccount(null); setCampaign(null); setMapData(null); setSavedCampaigns([]); setApiReady(false); }
   }
 
   async function handleResumeCampaign(campaignId: string) {
