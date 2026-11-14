@@ -44,14 +44,14 @@ const DIRECTIONS = [
 ];
 
 async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await fetch(API_BASE + path, {
     ...init,
     headers: { "Content-Type": "application/json", ...init?.headers },
   });
   if (!response.ok) {
     const payload = await response.json().catch(() => null);
     const detail = payload?.detail;
-    throw new Error(typeof detail === "string" ? detail : `Falha na comunicação com a API (${response.status}).`);
+    throw new Error(typeof detail === "string" ? detail : "Falha na comunicação com a API (" + response.status + ").");
   }
   return response.json() as Promise<T>;
 }
@@ -59,7 +59,7 @@ async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
 function formatWorldTime(minutes: number): string {
   const hours = Math.floor(minutes / 60).toString().padStart(2, "0");
   const remainder = (minutes % 60).toString().padStart(2, "0");
-  return `${hours}h ${remainder}m`;
+  return hours + "h " + remainder + "m";
 }
 
 function App() {
@@ -115,12 +115,12 @@ function App() {
     setError("");
     setLoading(true);
     try {
-      const character = await apiRequest<Character>(`/api/v1/campaigns/${campaign.id}/character`, {
+      const character = await apiRequest<Character>("/api/v1/campaigns/" + campaign.id + "/character", {
         method: "POST",
         body: JSON.stringify({ name: characterName, origin: selectedOrigin }),
       });
       setCampaign({ ...campaign, character });
-      const initialMap = await apiRequest<MapData>(`/api/v1/campaigns/${campaign.id}/map`);
+      const initialMap = await apiRequest<MapData>("/api/v1/campaigns/" + campaign.id + "/map");
       setMapData(initialMap);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Não foi possível preparar a exploração.");
@@ -134,11 +134,12 @@ function App() {
     setError("");
     setMoving(true);
     try {
-      const nextMap = await apiRequest<MapData>(`/api/v1/campaigns/${campaign.id}/move`, {
+      const nextMap = await apiRequest<MapData>("/api/v1/campaigns/" + campaign.id + "/move", {
         method: "POST",
         body: JSON.stringify({ target_q: targetQ, target_r: targetR }),
       });
       setMapData(nextMap);
+      setCampaign((current) => current ? { ...current, world_time_minutes: nextMap.world_time_minutes } : current);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Movimento não permitido.");
     } finally {
@@ -193,7 +194,7 @@ function App() {
             {chosenOrigin && (
               <div className="origin-preview">
                 <div><span className="preview-label">VANTAGEM CONTEXTUAL</span><strong>{chosenOrigin.contextual_strength}</strong></div>
-                <div><span className="preview-label">HABILIDADES INICIAIS</span><strong>{Object.entries(chosenOrigin.starting_skills).map(([skill, level]) => `${skill.replaceAll("_", " ")} · Nv. ${level}`).join(" / ")}</strong></div>
+                <div><span className="preview-label">HABILIDADES INICIAIS</span><strong>{Object.entries(chosenOrigin.starting_skills).map(([skill, level]) => skill.replaceAll("_", " ") + " · Nv. " + level).join(" / ")}</strong></div>
                 <div><span className="preview-label">EQUIPAMENTO INICIAL</span><strong>{chosenOrigin.starting_items.map((item) => item.replaceAll("_", " ")).join(", ")}</strong></div>
               </div>
             )}
@@ -206,10 +207,10 @@ function App() {
           <article className="status-card">
             <div className="section-kicker">CAMPANHA ATIVA</div>
             <h2>{campaign.name}</h2>
-            <p className="muted">Sua jornada está criada e salva.</p>
+            <p className="muted">Tempo do mundo: {formatWorldTime(mapData?.world_time_minutes ?? campaign.world_time_minutes)}</p>
             <div className="character-heading"><div className="avatar">{campaign.character.name.slice(0, 1).toUpperCase()}</div><div><strong>{campaign.character.name}</strong><span>{origins.find((item) => item.id === campaign.character?.origin)?.label || campaign.character.origin}</span></div></div>
             <div className="stat-list">
-              {Object.entries(campaign.character.attributes).map(([key, value]) => <div className="stat-row" key={key}><span>{key.toUpperCase()}</span><strong>{value}/5</strong><div className="stat-track"><i style={{ width: `${value * 20}%` }} /></div></div>)}
+              {Object.entries(campaign.character.attributes).map(([key, value]) => <div className="stat-row" key={key}><span>{key.toUpperCase()}</span><strong>{value}/5</strong><div className="stat-track"><i style={{ width: (value * 20) + "%" }} /></div></div>)}
             </div>
             <div className="section-kicker lower">CONDIÇÕES</div>
             <div className="condition-grid">
@@ -245,9 +246,22 @@ function App() {
                   <span><i className="legend-known" /> DESCOBERTO</span>
                   <span><i className="legend-unknown" /> NÃO EXPLORADO</span>
                 </div>
+                <div className="poi-panel">
+                  <div className="section-kicker">PONTOS DE INTERESSE CONHECIDOS ({mapData.points_of_interest.length})</div>
+                  {mapData.points_of_interest.length === 0 ? (
+                    <p className="muted">Nenhum ponto de interesse nesta área descoberta.</p>
+                  ) : (
+                    mapData.points_of_interest.map((poi) => (
+                      <div className="poi-row" key={poi.id}>
+                        <div><strong>{poi.name}</strong><span>{poi.category.replaceAll("_", " ")} · célula {poi.cell_q}:{poi.cell_r}</span></div>
+                        <small>CONHECIDO</small>
+                      </div>
+                    ))
+                  )}
+                </div>
               </>
             )}
-            <div className="map-note">Cada movimento válido avança 10 minutos no relógio do mundo. O servidor valida a adjacência e registra a descoberta. A célula inicial é provisória e não usa GPS.</div>
+            <div className="map-note">Os pontos de interesse só aparecem quando a célula correspondente é descoberta. As coordenadas vêm de dados públicos municipais; o jogo não coleta GPS.</div>
           </article>
           <article className="story-card">
             <div className="section-kicker">DIÁRIO DE SOBREVIVÊNCIA</div>
