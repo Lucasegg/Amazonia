@@ -1,7 +1,5 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap');
-
 :root {
-  font-family: "Manrope", sans-serif;
+  font-family: "Manrope", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: #edf2e9;
   background: #101612;
   font-synthesis: none;
@@ -17,9 +15,9 @@ button, input, select { font: inherit; }
 .app-shell { width: min(1120px, calc(100% - 48px)); margin: 0 auto; }
 .topbar { height: 82px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); }
 .brand { display: flex; gap: 12px; align-items: center; color: inherit; text-decoration: none; font-size: 14px; font-weight: 800; letter-spacing: .19em; }
-.brand small { display: block; margin-top: 4px; color: var(--muted); font: 9px "DM Mono", monospace; letter-spacing: .14em; }
+.brand small { display: block; margin-top: 4px; color: var(--muted); font: 9px ui-monospace, monospace; letter-spacing: .14em; }
 .brand-mark { display: grid; place-items: center; width: 36px; height: 36px; border: 1px solid #78945d; color: var(--green); font-size: 20px; }
-.connection, .eyebrow, .section-kicker, .footnote, .preview-label, .story-rule, footer, .map-placeholder small, .map-placeholder span { font-family: "DM Mono", monospace; letter-spacing: .12em; }
+.connection, .eyebrow, .section-kicker, .footnote, .preview-label, .story-rule, footer, .map-placeholder small, .map-placeholder span { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .12em; }
 .connection { color: var(--muted); font-size: 9px; display: flex; gap: 9px; align-items: center; }
 .status-dot, .eyebrow span { width: 7px; height: 7px; border-radius: 50%; background: #a18d58; display: inline-block; }
 .status-dot.online { background: #a8cf78; box-shadow: 0 0 12px #a8cf7866; }
@@ -36,7 +34,7 @@ button, input, select { font: inherit; }
 label { margin-top: 9px; color: #d8e2d3; font-size: 11px; font-weight: 700; }
 input, select { width: 100%; color: #edf2e9; background: #111a14; border: 1px solid #354539; border-radius: 2px; padding: 14px 13px; outline: none; }
 input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 2px #b8d78b1c; }
-.primary-button { margin-top: 15px; border: 0; border-radius: 2px; padding: 16px 18px; color: #152014; background: var(--green); font: 500 10px "DM Mono", monospace; letter-spacing: .13em; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+.primary-button { margin-top: 15px; border: 0; border-radius: 2px; padding: 16px 18px; color: #152014; background: var(--green); font: 500 10px ui-monospace, monospace; letter-spacing: .13em; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
 .primary-button:disabled { opacity: .45; cursor: not-allowed; }
 .primary-button span { font-size: 16px; }
 .footnote { margin-top: 28px; color: #7f8b7e; font-size: 8px; line-height: 1.7; }
@@ -54,7 +52,7 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 2px #b
 .character-heading strong { font-size: 14px; }
 .character-heading span { margin-top: 4px; color: var(--muted); font-size: 10px; }
 .stat-list { display: grid; gap: 14px; }
-.stat-row { display: grid; grid-template-columns: 100px 30px 1fr; align-items: center; gap: 10px; color: var(--muted); font: 9px "DM Mono", monospace; }
+.stat-row { display: grid; grid-template-columns: 100px 30px 1fr; align-items: center; gap: 10px; color: var(--muted); font: 9px ui-monospace, monospace; }
 .stat-row strong { color: #edf2e9; }
 .stat-track { height: 4px; background: #354237; }
 .stat-track i { display: block; height: 100%; background: var(--green); }
@@ -62,14 +60,10 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 2px #b
 .condition-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .condition-grid div { padding: 12px; background: #111a14; border: 1px solid var(--line); }
 .condition-grid span, .condition-grid strong { display: block; }
-.condition-grid span { color: var(--muted); font: 8px "DM Mono", monospace; }
+.condition-grid span { color: var(--muted); font: 8px ui-monospace, monospace; }
 .condition-grid strong { margin-top: 5px; font-size: 18px; }
-.map-placeholder { min-height: 210px; margin-top: 18px; display: grid; place-content: center; justify-items: center; position: relative; overflow: hidden; background: #1a2a20; border: 1px solid #344b39; }
-.map-grid-lines { position: absolute; inset: 0; opacity: .3; background-image: linear-gradient(#76936c33 1px, transparent 1px), linear-gradient(90deg, #76936c33 1px, transparent 1px); background-size: 28px 28px; transform: rotate(-8deg) scale(1.2); }
-.map-pin { z-index: 1; color: var(--green); font-size: 42px; }
-.map-placeholder span, .map-placeholder small { z-index: 1; }
-.map-placeholder span { margin-top: 7px; font-size: 9px; color: #d8e2d3; }
-.map-placeholder small { margin-top: 6px; color: #9eae9a; font-size: 7px; }
+.maplibre-container { width: 100%; height: 280px; margin-top: 18px; overflow: hidden; border: 1px solid #344b39; background: #1a2a20; }
+.maplibre-container .maplibregl-ctrl-attrib { font-size: 9px; }
 .map-note { margin-top: 13px; color: var(--muted); font-size: 10px; line-height: 1.6; }
 .story-card p { color: #bac5b7; font-size: 12px; line-height: 1.8; }
 .story-rule { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); color: #879883; font-size: 8px; line-height: 1.7; }
