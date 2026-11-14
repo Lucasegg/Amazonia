@@ -153,7 +153,8 @@ def csrf_token(request: Request, response: Response) -> dict[str, str]:
 
 def _account_action_url(action: str, token: str) -> str:
     base = os.getenv("AMAZONIA_WEB_URL", "http://localhost:5173").rstrip("/")
-    return f"{base}/?{action}={token}"
+    # Fragmentos não são enviados na requisição HTTP inicial nem em cabeçalhos Referer.
+    return f"{base}/#{action}={token}"
 
 
 def _verification_required() -> bool:
