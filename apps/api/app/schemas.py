@@ -75,3 +75,12 @@ class CampaignRead(BaseModel):
 
 class UseItemRequest(BaseModel):
     item_id: str = Field(min_length=1, max_length=80)
+
+
+class AccountTokenRequest(BaseModel):
+    token: str = Field(min_length=20, max_length=256)
+
+
+class PasswordResetRequest(BaseModel):
+    token: str = Field(min_length=20, max_length=256)
+    password: str = Field(min_length=12, max_length=128)
