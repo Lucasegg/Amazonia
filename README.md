@@ -66,3 +66,17 @@ Nenhum POI real é inventado ou incluído por padrão. O processo de aquisição
     npm run build
 
 A CI executa testes e validação de migrações da API, auditoria de dependências frontend e build do frontend.
+
+
+## Contas e campanhas privadas
+
+A API exige autenticação Bearer para criar, listar, consultar e alterar campanhas. O cadastro aceita e-mail, nome de exibição e senha com no mínimo 12 caracteres; as senhas são armazenadas com Argon2id e os tokens HS256 expiram em 12 horas. Configure `AMAZONIA_AUTH_SECRET` com pelo menos 32 caracteres aleatórios no ambiente da API. Nunca use o valor de teste da CI em homologação ou produção.
+
+Endpoints de autenticação:
+- `POST /api/v1/auth/register`
+- `POST /api/v1/auth/login`
+- `GET /api/v1/auth/me`
+
+A rota `GET /api/v1/campaigns` lista apenas campanhas da conta autenticada. Os endpoints de campanha retornam 404 para IDs que não pertencem ao usuário, sem confirmar a existência de campanhas de terceiros.
+
+A migração 0004 adiciona contas e vínculo opcional de propriedade. Campanhas antigas sem proprietário permanecem inacessíveis pela API autenticada até uma decisão explícita de recuperação; não são atribuídas automaticamente.
