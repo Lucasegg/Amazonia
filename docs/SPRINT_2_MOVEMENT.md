@@ -17,9 +17,12 @@ A primeira movimentação usa uma grade hexagonal axial persistida no personagem
 - O cliente envia somente a célula de destino.
 - O servidor valida campanha, personagem, limites e adjacência.
 - Um movimento válido avança o relógio do mundo em 10 minutos.
-- A nova célula é registrada como descoberta e a posição é persistida.
+- Cada movimento aplica o custo inicial de sobrevivência: fome +1, sede +2 e fadiga +1 (escalas de 0 a 100, limitadas a 100).
+- Saúde permanece inalterada por enquanto; efeitos de privação serão definidos junto às ações de alimentação, hidratação e descanso.
+- As taxas são parâmetros provisórios de balanceamento, não medidas médicas reais.
+- A nova célula é registrada como descoberta e a posição e as condições são persistidas.
 - Movimento para a mesma célula retorna conflito; salto de células é rejeitado.
-- Não há ainda custo de fadiga, combate, veículos ou bloqueios de terreno.
+- Ainda não há penalidades mecânicas por fadiga acumulada, combate, veículos ou bloqueios de terreno.
 
 ## Integridade
 

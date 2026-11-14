@@ -139,6 +139,12 @@ function App() {
         body: JSON.stringify({ target_q: targetQ, target_r: targetR }),
       });
       setMapData(nextMap);
+      setCampaign({
+        ...campaign,
+        character: campaign.character
+          ? { ...campaign.character, needs: nextMap.character_needs }
+          : null,
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Movimento não permitido.");
     } finally {

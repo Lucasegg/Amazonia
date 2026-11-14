@@ -24,6 +24,7 @@ export type MapPointOfInterest = {
 export type MapData = {
   campaign_id: string;
   world_time_minutes: number;
+  character_needs: Record<string, number>;
   player_position: {
     q: number;
     r: number;

@@ -1,5 +1,6 @@
 from app.domain.world import (
     HEX_RADIUS_METERS,
+    apply_movement_needs,
     build_map_data,
     cell_center,
     hex_distance,
@@ -15,6 +16,7 @@ class FakeCharacter:
     position_q = 1
     position_r = 0
     discovered_cells = ["0:0", "1:0"]
+    needs = {"hunger": 0, "thirst": 0, "fatigue": 0, "health": 100}
 
 
 def test_hex_distance_recognizes_adjacent_cells():
@@ -38,3 +40,19 @@ def test_map_only_marks_discovered_cells_and_current_position():
     assert start["discovered"] is True
     assert len(result["cells"]) == 19
     assert result["hex_radius_meters"] == HEX_RADIUS_METERS
+    assert result["character_needs"] == FakeCharacter.needs
+
+
+def test_movement_increases_hunger_thirst_and_fatigue_without_damaging_health():
+    updated = apply_movement_needs({"hunger": 10, "thirst": 20, "fatigue": 30, "health": 95})
+    assert updated == {"hunger": 11, "thirst": 22, "fatigue": 31, "health": 95}
+
+
+def test_movement_needs_are_capped_at_one_hundred():
+    updated = apply_movement_needs({"hunger": 100, "thirst": 99, "fatigue": 100, "health": 100})
+    assert updated == {"hunger": 100, "thirst": 100, "fatigue": 100, "health": 100}
+
+
+def test_movement_needs_fill_missing_fields_with_safe_defaults():
+    updated = apply_movement_needs({})
+    assert updated == {"hunger": 1, "thirst": 2, "fatigue": 1, "health": 100}

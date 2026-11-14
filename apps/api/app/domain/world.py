@@ -1,4 +1,4 @@
-"""Regras geográficas determinísticas para o protótipo de exploração."""
+"""Regras geográficas e efeitos básicos do tempo no protótipo de exploração."""
 from __future__ import annotations
 
 from math import cos, radians, sqrt
@@ -61,6 +61,28 @@ def cell_key(q: int, r: int) -> str:
     return f"{q}:{r}"
 
 
+def apply_movement_needs(needs: dict[str, int] | None) -> dict[str, int]:
+    """Aplica o custo básico de sobrevivência de um deslocamento de 10 minutos.
+
+    Fome, sede e fadiga são indicadores de 0 (sem necessidade acumulada) a
+    100 (nível crítico). As taxas são parâmetros iniciais de balanceamento:
+    +1 fome, +2 sede e +1 fadiga por movimento. Saúde não cai automaticamente
+    nesta etapa; dano por privação será definido junto das ações de comida,
+    água e descanso.
+    """
+    current = needs or {}
+    updated = {
+        "hunger": min(100, max(0, int(current.get("hunger", 0)))) + 1,
+        "thirst": min(100, max(0, int(current.get("thirst", 0)))) + 2,
+        "fatigue": min(100, max(0, int(current.get("fatigue", 0)))) + 1,
+        "health": min(100, max(0, int(current.get("health", 100)))),
+    }
+    updated["hunger"] = min(100, updated["hunger"])
+    updated["thirst"] = min(100, updated["thirst"])
+    updated["fatigue"] = min(100, updated["fatigue"])
+    return updated
+
+
 def build_map_data(
     campaign: Any,
     character: Any,
@@ -115,6 +137,7 @@ def build_map_data(
             "latitude": current_latitude,
             "longitude": current_longitude,
         },
+        "character_needs": dict(character.needs or {}),
         "hex_radius_meters": HEX_RADIUS_METERS,
         "cells": cells,
         "points_of_interest": visible_pois,

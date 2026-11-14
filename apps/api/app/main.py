@@ -13,6 +13,7 @@ from app.domain.rules import ORIGINS, Origin, RuleValidationError, resolve_check
 from app.domain.world import (
     MAX_CELL_COORDINATE,
     MOVE_COST_MINUTES,
+    apply_movement_needs,
     build_map_data,
     cell_key,
     hex_distance,
@@ -204,7 +205,7 @@ def move_character(
     payload: MoveRequest,
     db: Session = Depends(get_db),
 ) -> dict[str, object]:
-    """Move exatamente uma célula adjacente e avança o relógio do mundo."""
+    """Move exatamente uma célula adjacente e avança tempo e necessidades."""
     campaign = db.get(Campaign, campaign_id)
     if campaign is None:
         raise HTTPException(status_code=404, detail="Campanha não encontrada.")
@@ -227,6 +228,7 @@ def move_character(
 
     character.position_q = payload.target_q
     character.position_r = payload.target_r
+    character.needs = apply_movement_needs(character.needs)
     discovered = set(character.discovered_cells or [])
     discovered.add(cell_key(payload.target_q, payload.target_r))
     character.discovered_cells = sorted(discovered)
