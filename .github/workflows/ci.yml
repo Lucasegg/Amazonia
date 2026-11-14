@@ -13,6 +13,8 @@ jobs:
   api:
     name: API - testes, migrações e compilação
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: sqlite:///./ci.db
     defaults:
       run:
         working-directory: apps/api
@@ -28,8 +30,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
       - name: Validar migrações
-        env:
-          DATABASE_URL: sqlite:///./ci.db
         run: alembic upgrade head
       - name: Executar testes
         run: pytest
@@ -47,8 +47,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-          cache: npm
-          cache-dependency-path: apps/web/package.json
       - name: Instalar dependências
         run: npm install
       - name: Validar TypeScript e build

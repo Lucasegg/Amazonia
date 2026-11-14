@@ -5,70 +5,43 @@ RPG de sobrevivência e narrativa ambientado inicialmente na Grande São Paulo, 
 ## Estado do projeto
 
 - Fase 0: visão, regras fundamentais e blueprint técnico documentados.
-- Sprint 1: motor determinístico, API, persistência inicial e interface de criação de campanha/personagem.
-- Experiência inicial: campanha individual, mapa 2D e narrativa textual.
+- Sprint 1: motor determinístico, API, campanhas, personagens e interface web inicial.
+- Experiência individual com narrativa textual; mapa interativo e simulação de mundo entram nas próximas etapas.
 - A IA será narradora; não controla dados, atributos, inventário ou estado persistido.
 
 ## Estrutura
 
-- `docs/`: design, regras e arquitetura.
-- `apps/api/`: API FastAPI, domínio, modelos SQLAlchemy e migrações Alembic.
-- `apps/web/`: interface React + TypeScript + Vite.
-- `.github/workflows/ci.yml`: testes, migrações e build da interface.
+- docs/: design, regras, arquitetura e ambientes.
+- apps/api/: API FastAPI, domínio, modelos SQLAlchemy e migrações Alembic.
+- apps/web/: React + TypeScript + Vite.
+- .github/workflows/ci.yml: testes, migrações e build.
 
-## Executar localmente
+## Ambientes
 
-Requer Python 3.11+ e Node.js 22+.
+O desenvolvimento remoto deve usar o banco Neon de homologação descrito em docs/ambientes.md. DATABASE_URL é obrigatória e deve ser fornecida como variável de ambiente ou segredo. A API não cria banco local automaticamente. A CI usa SQLite isolado apenas para validar migrações e testes, sem acessar homologação ou produção.
 
-**Terminal 1 — API**
+Migrações devem ser revisadas e validadas primeiro em homologação. Não executar migrações automaticamente na inicialização da API.
 
-```bash
-cd apps/api
-python -m venv .venv
-# Windows PowerShell:
-.venv\\Scripts\\Activate.ps1
-# Linux/macOS:
-# source .venv/bin/activate
-pip install -e ".[dev]"
-alembic upgrade head
-uvicorn app.main:app --reload
-```
+## Executar a API
 
-A API e sua documentação ficam em `http://127.0.0.1:8000` e `http://127.0.0.1:8000/docs`.
+Requer Python 3.11 ou superior. Configure DATABASE_URL com a conexão do ambiente apropriado:
 
-**Terminal 2 — Interface**
+    cd apps/api
+    pip install -e ".[dev]"
+    alembic upgrade head
+    uvicorn app.main:app --reload
 
-```bash
-cd apps/web
-npm install
-npm run dev
-```
+## Executar a interface
 
-A interface fica em `http://localhost:5173`. Se a API estiver em outro endereço, configure `VITE_API_URL` com a URL base da API. Para ajustar origens permitidas no backend, configure `AMAZONIA_CORS_ORIGINS` com uma lista separada por vírgulas.
+    cd apps/web
+    npm install
+    npm run dev
 
-O banco padrão é SQLite local. PostgreSQL pode ser usado por meio de `DATABASE_URL`. Nenhum serviço remoto é provisionado automaticamente.
+Defina VITE_API_URL com a origem da API. Para permitir a interface no CORS, configure AMAZONIA_CORS_ORIGINS com a origem exata, por exemplo http://localhost:5173.
 
-## Testes e build
+## Testes
 
-```bash
-cd apps/api
-pytest
-```
+    cd apps/api
+    pytest
 
-```bash
-cd apps/web
-npm install
-npm run build
-```
-
-## Rotas iniciais
-
-- `GET /health`
-- `GET /api/v1/game/origins`
-- `GET /api/v1/game/origins/{origin_id}`
-- `POST /api/v1/game/checks`
-- `POST /api/v1/campaigns`
-- `GET /api/v1/campaigns/{campaign_id}`
-- `POST /api/v1/campaigns/{campaign_id}/character`
-
-O mapa interativo, movimentação, exploração e integração de IA ainda serão implementados nas próximas etapas.
+A CI executa testes e validação de migrações da API, além do build do frontend.
