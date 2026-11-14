@@ -78,3 +78,8 @@ Não coloque credenciais SMTP no repositório, no frontend ou em mensagens. O pa
 A migração `0006_account_verification` adiciona `users.role`, `users.email_verified_at` e `account_tokens`. Tokens em texto puro são enviados apenas por e-mail; o banco guarda somente SHA-256, com propósito, expiração e uso único.
 
 Em testes automatizados, `AMAZONIA_REQUIRE_EMAIL_VERIFICATION=false` permite fluxo local sem SMTP. Nunca use esse valor no Preview/Production publicado.
+
+
+## Editor de aparência do personagem
+
+A migração `0007_character_appearance` adiciona JSON de aparência cosmética ao personagem, com defaults para registros existentes. O servidor valida cada opção contra o catálogo fechado de cabelo, cor de cabelo, olhos, tom de pele, tatuagem (estilo, local e escala) e roupas (modelos e cores). A aparência não altera atributos, habilidades, profissão ou regras mecânicas.
