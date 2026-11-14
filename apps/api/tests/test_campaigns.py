@@ -196,3 +196,44 @@ def test_map_reveals_points_of_interest_only_after_cell_discovery():
     assert moved.status_code == 200
     names = {poi["name"] for poi in moved.json()["points_of_interest"]}
     assert names == {"Ponto conhecido", "Ponto oculto"}
+
+
+def test_consuming_water_persists_inventory_needs_and_world_time():
+    campaign = create_campaign("Água para a jornada")
+    character = create_character(campaign["id"])
+    response = client.post(
+        f"/api/v1/campaigns/{campaign['id']}/inventory/use",
+        json={"item_id": "agua_potavel"},
+    )
+    assert response.status_code == 200
+    state = response.json()
+    assert "agua_potavel" not in state["inventory"]
+    assert "racao" in state["inventory"]
+    assert state["needs"]["thirst"] == 0
+    assert state["world_time_minutes"] == 5
+
+    persisted = client.get(f"/api/v1/campaigns/{campaign['id']}").json()
+    assert persisted["character"]["inventory"] == state["inventory"]
+    assert persisted["character"]["needs"] == state["needs"]
+    assert persisted["world_time_minutes"] == 5
+
+
+def test_cannot_consume_missing_item_or_unknown_item():
+    campaign = create_campaign("Inventário limitado")
+    create_character(campaign["id"])
+
+    missing = client.post(
+        f"/api/v1/campaigns/{campaign['id']}/inventory/use",
+        json={"item_id": "kit_atendimento_basico"},
+    )
+    assert missing.status_code == 409
+
+    unknown = client.post(
+        f"/api/v1/campaigns/{campaign['id']}/inventory/use",
+        json={"item_id": "item_que_nao_existe"},
+    )
+    assert unknown.status_code == 409
+
+    current = client.get(f"/api/v1/campaigns/{campaign['id']}").json()
+    assert current["character"]["needs"]["thirst"] == 0
+    assert current["world_time_minutes"] == 0
