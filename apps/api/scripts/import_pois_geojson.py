@@ -54,18 +54,25 @@ def parse_feature(feature: dict) -> dict | None:
     if len(source_ref) > 120:
         raise ValueError("source_ref excede o limite de 120 caracteres.")
 
+    is_osm_reference = source_ref.startswith("osm:")
+    if is_osm_reference:
+        parts = source_ref.split(":")
+        if len(parts) != 3 or parts[1] not in {"node", "way", "relation"} or not parts[2].isdigit():
+            raise ValueError("source_ref OSM precisa seguir osm:node|way|relation:id.")
     if abs(q) > MAX_CELL_COORDINATE or abs(r) > MAX_CELL_COORDINATE:
         return None
 
     source = str(properties.get("source") or "").strip()
-    if not source and source_ref.startswith("osm:"):
+    if not source and is_osm_reference:
         source = "OpenStreetMap"
     if not source:
         raise ValueError("POI precisa identificar a fonte dos dados.")
     if len(source) > 40:
         raise ValueError("source excede o limite de 40 caracteres.")
-    if source == "OpenStreetMap" and not source_ref.startswith("osm:"):
+    if source == "OpenStreetMap" and not is_osm_reference:
         raise ValueError("Registros OpenStreetMap precisam de source_ref osm:type:id.")
+    if is_osm_reference and source != "OpenStreetMap":
+        raise ValueError("source_ref OSM não pode ser atribuído a outra fonte.")
 
     source_license = str(properties.get("source_license") or "").strip()
     if not source_license and source == "OpenStreetMap":
@@ -82,13 +89,12 @@ def parse_feature(feature: dict) -> dict | None:
     source_url = str(properties.get("source_url") or "").strip()
     if not source_url and source == "OpenStreetMap":
         parts = source_ref.split(":")
-        if len(parts) == 3 and parts[0] == "osm":
-            source_url = f"https://www.openstreetmap.org/{parts[1]}/{parts[2]}"
-        else:
-            source_url = "https://www.openstreetmap.org/"
+        source_url = f"https://www.openstreetmap.org/{parts[1]}/{parts[2]}"
     parsed_url = urlparse(source_url)
     if not parsed_url.scheme or not parsed_url.netloc or parsed_url.scheme not in {"http", "https"}:
         raise ValueError("POI precisa de source_url HTTP ou HTTPS válido.")
+    if source == "OpenStreetMap" and parsed_url.netloc not in {"www.openstreetmap.org", "openstreetmap.org"}:
+        raise ValueError("source_url de OpenStreetMap precisa apontar para openstreetmap.org.")
     if len(source_url) > 255:
         raise ValueError("source_url excede o limite de 255 caracteres.")
 
