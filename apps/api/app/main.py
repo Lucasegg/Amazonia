@@ -1,5 +1,6 @@
 """API do jogo; o cliente nunca decide resultados mecânicos nem movimento."""
 import os
+import logging
 from random import SystemRandom
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
@@ -27,6 +28,8 @@ from app.schemas import AccountTokenRequest, AuthResponse, EmailAddressRequest, 
 from app.auth import clear_auth_attempts, clear_session_cookies, consume_account_token, create_account_token, get_current_user, hash_password, is_rate_limited, record_auth_attempt, set_csrf_cookie, set_session_cookies, verify_password
 from app.email_delivery import send_account_email
 from datetime import datetime, timedelta, timezone
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="Amazonia API",
@@ -212,7 +215,10 @@ def resend_verification(payload: EmailAddressRequest, request: Request, db: Sess
     if user is not None:
         token = create_account_token(db, user, "verify_email", timedelta(hours=24))
         link = _account_action_url("verify", token)
-        send_account_email(user.email, "Confirme sua conta Amazonia", f"Confirme seu e-mail em até 24 horas:\n{link}")
+        try:
+            send_account_email(user.email, "Confirme sua conta Amazonia", f"Confirme seu e-mail em até 24 horas:\n{link}")
+        except HTTPException:
+            logger.exception("Falha ao entregar e-mail de confirmação.")
     return {"message": "Se houver uma conta pendente para esse endereço, enviaremos uma nova confirmação."}
 
 
@@ -228,7 +234,10 @@ def forgot_password(payload: EmailAddressRequest, request: Request, db: Session 
     if user is not None:
         token = create_account_token(db, user, "password_reset", timedelta(minutes=30))
         link = _account_action_url("reset", token)
-        send_account_email(user.email, "Redefina sua senha Amazonia", f"Este link expira em 30 minutos e só pode ser usado uma vez:\n{link}")
+        try:
+            send_account_email(user.email, "Redefina sua senha Amazonia", f"Este link expira em 30 minutos e só pode ser usado uma vez:\n{link}")
+        except HTTPException:
+            logger.exception("Falha ao entregar e-mail de recuperação.")
     return {"message": "Se a conta existir e estiver confirmada, enviaremos instruções de recuperação."}
 
 
