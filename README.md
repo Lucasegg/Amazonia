@@ -5,7 +5,7 @@ RPG de sobrevivência e narrativa ambientado inicialmente na Grande São Paulo, 
 ## Estado do projeto
 
 - Fase 0: visão, regras fundamentais e blueprint técnico documentados.
-- Sprint 1: motor determinístico, API e persistência inicial de campanhas/personagens.
+- Sprint 1: motor determinístico, API, persistência inicial e interface de criação de campanha/personagem.
 - Experiência inicial: campanha individual, mapa 2D e narrativa textual.
 - A IA será narradora; não controla dados, atributos, inventário ou estado persistido.
 
@@ -13,11 +13,14 @@ RPG de sobrevivência e narrativa ambientado inicialmente na Grande São Paulo, 
 
 - `docs/`: design, regras e arquitetura.
 - `apps/api/`: API FastAPI, domínio, modelos SQLAlchemy e migrações Alembic.
-- `.github/workflows/ci.yml`: testes e validação da migração.
+- `apps/web/`: interface React + TypeScript + Vite.
+- `.github/workflows/ci.yml`: testes, migrações e build da interface.
 
-## Executar a API localmente
+## Executar localmente
 
-Requer Python 3.11 ou superior.
+Requer Python 3.11+ e Node.js 22+.
+
+**Terminal 1 — API**
 
 ```bash
 cd apps/api
@@ -31,15 +34,31 @@ alembic upgrade head
 uvicorn app.main:app --reload
 ```
 
-A configuração padrão usa SQLite local para facilitar o início. Para PostgreSQL, defina `DATABASE_URL` antes de executar a migração. Nenhum banco remoto é provisionado por esta PR.
+A API e sua documentação ficam em `http://127.0.0.1:8000` e `http://127.0.0.1:8000/docs`.
 
-A documentação interativa fica em `http://127.0.0.1:8000/docs`.
+**Terminal 2 — Interface**
 
-## Executar os testes
+```bash
+cd apps/web
+npm install
+npm run dev
+```
+
+A interface fica em `http://localhost:5173`. Se a API estiver em outro endereço, configure `VITE_API_URL` com a URL base da API. Para ajustar origens permitidas no backend, configure `AMAZONIA_CORS_ORIGINS` com uma lista separada por vírgulas.
+
+O banco padrão é SQLite local. PostgreSQL pode ser usado por meio de `DATABASE_URL`. Nenhum serviço remoto é provisionado automaticamente.
+
+## Testes e build
 
 ```bash
 cd apps/api
 pytest
+```
+
+```bash
+cd apps/web
+npm install
+npm run build
 ```
 
 ## Rotas iniciais
@@ -52,4 +71,4 @@ pytest
 - `GET /api/v1/campaigns/{campaign_id}`
 - `POST /api/v1/campaigns/{campaign_id}/character`
 
-Cada campanha aceita um personagem no primeiro fluxo do protótipo. As regras e os valores iniciais permanecem versionados nos documentos de design. A Sprint 1 não conecta provedor de IA nem serviço remoto pago.
+O mapa interativo, movimentação, exploração e integração de IA ainda serão implementados nas próximas etapas.
