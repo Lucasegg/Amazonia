@@ -35,7 +35,7 @@ label { margin-top: 9px; color: #d8e2d3; font-size: 11px; font-weight: 700; }
 input, select { width: 100%; color: #edf2e9; background: #111a14; border: 1px solid #354539; border-radius: 2px; padding: 14px 13px; outline: none; }
 input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 2px #b8d78b1c; }
 .primary-button { margin-top: 15px; border: 0; border-radius: 2px; padding: 16px 18px; color: #152014; background: var(--green); font: 500 10px ui-monospace, monospace; letter-spacing: .13em; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
-.primary-button:disabled { opacity: .45; cursor: not-allowed; }
+.primary-button:disabled, .secondary-button:disabled { opacity: .45; cursor: not-allowed; }
 .primary-button span { font-size: 16px; }
 .footnote { margin-top: 28px; color: #7f8b7e; font-size: 8px; line-height: 1.7; }
 .error-banner { padding: 13px 16px; margin: 0 0 18px; color: #ffd6ca; background: #4b2925; border: 1px solid #9d5145; font-size: 12px; }
@@ -62,10 +62,31 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 2px #b
 .condition-grid span, .condition-grid strong { display: block; }
 .condition-grid span { color: var(--muted); font: 8px ui-monospace, monospace; }
 .condition-grid strong { margin-top: 5px; font-size: 18px; }
-.maplibre-container { width: 100%; height: 280px; margin-top: 18px; overflow: hidden; border: 1px solid #344b39; background: #1a2a20; }
+.maplibre-container { width: 100%; height: 320px; margin-top: 18px; overflow: hidden; border: 1px solid #344b39; background: #1a2a20; }
 .maplibre-container .maplibregl-ctrl-attrib { font-size: 9px; }
 .map-note { margin-top: 13px; color: var(--muted); font-size: 10px; line-height: 1.6; }
+.exploration-controls { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); display: grid; gap: 12px; }
+.secondary-button { width: 100%; border: 1px solid #78945d; border-radius: 2px; padding: 14px 16px; color: var(--green); background: #1b2b1e; font: 500 10px ui-monospace, monospace; letter-spacing: .13em; cursor: pointer; }
+.travel-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; }
+.travel-button { margin: 0; padding: 14px 15px; white-space: nowrap; }
+.action-message { margin: 0; padding: 12px; color: #dce9d0; background: #263b29; border-left: 2px solid var(--green); font-size: 11px; line-height: 1.6; }
+.known-locations { display: grid; gap: 8px; margin-top: 18px; }
+.known-location { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 11px; }
+.known-location small { color: var(--muted); white-space: nowrap; }
 .story-card p { color: #bac5b7; font-size: 12px; line-height: 1.8; }
+.event-list { display: grid; gap: 12px; margin-top: 20px; }
+.event-entry { padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.event-entry span { color: var(--green); font: 8px ui-monospace, monospace; letter-spacing: .1em; }
+.event-entry p { margin: 7px 0 0; }
 .story-rule { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); color: #879883; font-size: 8px; line-height: 1.7; }
 footer { display: flex; justify-content: space-between; gap: 18px; padding: 22px 0 30px; border-top: 1px solid var(--line); color: #738072; font-size: 8px; }
-@media (max-width: 760px) { .app-shell { width: min(100% - 28px, 560px); } .hero { padding: 54px 0 30px; } .setup-card { padding: 24px; } .game-grid { grid-template-columns: 1fr; } .status-card { grid-row: auto; } footer { flex-direction: column; } }
+@media (max-width: 760px) {
+  .app-shell { width: min(100% - 28px, 560px); }
+  .hero { padding: 54px 0 30px; }
+  .setup-card { padding: 24px; }
+  .game-grid { grid-template-columns: 1fr; }
+  .status-card { grid-row: auto; }
+  .travel-row { grid-template-columns: 1fr; }
+  .travel-button { width: 100%; }
+  footer { flex-direction: column; }
+}
