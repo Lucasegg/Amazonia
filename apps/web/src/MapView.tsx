@@ -29,7 +29,6 @@ function MapView() {
       minZoom: 8,
       maxZoom: 17,
       maxPitch: 0,
-      attributionControl: true,
     });
 
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
@@ -41,7 +40,7 @@ function MapView() {
     <div
       ref={containerRef}
       className="maplibre-container"
-      role="img"
+      role="region"
       aria-label="Mapa cartográfico de referência da região metropolitana de São Paulo"
     />
   );
