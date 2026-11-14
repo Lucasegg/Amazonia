@@ -153,7 +153,8 @@ def csrf_token(request: Request, response: Response) -> dict[str, str]:
 
 def _account_action_url(action: str, token: str) -> str:
     base = os.getenv("AMAZONIA_WEB_URL", "http://localhost:5173").rstrip("/")
-    return f"{base}/?{action}={token}"
+    # Fragmentos não são enviados na requisição HTTP inicial nem em cabeçalhos Referer.
+    return f"{base}/#{action}={token}"
 
 
 def _verification_required() -> bool:
@@ -180,7 +181,11 @@ def register(payload: RegisterRequest, response: Response, request: Request, db:
     if _verification_required():
         token = create_account_token(db, user, "verify_email", timedelta(hours=24))
         link = _account_action_url("verify", token)
-        send_account_email(user.email, "Confirme sua conta Amazonia", f"Olá, {user.display_name}.\n\nConfirme seu e-mail em até 24 horas acessando:\n{link}\n\nSe você não criou esta conta, ignore esta mensagem.")
+        try:
+            send_account_email(user.email, "Confirme sua conta Amazonia", f"Olá, {user.display_name}.\n\nConfirme seu e-mail em até 24 horas acessando:\n{link}\n\nSe você não criou esta conta, ignore esta mensagem.")
+        except HTTPException as exc:
+            logger.exception("Conta criada, mas o e-mail de confirmação não foi entregue.")
+            raise HTTPException(status_code=503, detail="Conta criada, mas não foi possível enviar a confirmação. Configure o SMTP e solicite o reenvio do e-mail.") from exc
         return {"message": "Conta criada. Enviamos um link de confirmação para seu e-mail."}
     set_session_cookies(response, user.id, user.session_version)
     return {"message": "Conta criada. Entre com seu e-mail e senha."}
@@ -217,8 +222,9 @@ def resend_verification(payload: EmailAddressRequest, request: Request, db: Sess
         link = _account_action_url("verify", token)
         try:
             send_account_email(user.email, "Confirme sua conta Amazonia", f"Confirme seu e-mail em até 24 horas:\n{link}")
-        except HTTPException:
+        except HTTPException as exc:
             logger.exception("Falha ao entregar e-mail de confirmação.")
+            raise HTTPException(status_code=503, detail="Não foi possível enviar a confirmação agora. Tente novamente mais tarde.") from exc
     return {"message": "Se houver uma conta pendente para esse endereço, enviaremos uma nova confirmação."}
 
 
@@ -236,8 +242,9 @@ def forgot_password(payload: EmailAddressRequest, request: Request, db: Session 
         link = _account_action_url("reset", token)
         try:
             send_account_email(user.email, "Redefina sua senha Amazonia", f"Este link expira em 30 minutos e só pode ser usado uma vez:\n{link}")
-        except HTTPException:
+        except HTTPException as exc:
             logger.exception("Falha ao entregar e-mail de recuperação.")
+            raise HTTPException(status_code=503, detail="Não foi possível enviar a recuperação agora. Tente novamente mais tarde.") from exc
     return {"message": "Se a conta existir e estiver confirmada, enviaremos instruções de recuperação."}
 
 
