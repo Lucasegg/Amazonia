@@ -227,6 +227,7 @@ function App() {
                 <div className="map-meta">
                   <span>CÉLULA {mapData.player_position.q}:{mapData.player_position.r}</span>
                   <span>TEMPO DO MUNDO {formatWorldTime(mapData.world_time_minutes)}</span>
+                  <span>LOCAIS DESCOBERTOS {mapData.points_of_interest.length}</span>
                 </div>
                 <div className="move-controls" aria-label="Mover para célula adjacente">
                   {DIRECTIONS.map((direction) => (
@@ -247,7 +248,7 @@ function App() {
                 </div>
               </>
             )}
-            <div className="map-note">Cada movimento válido avança 10 minutos no relógio do mundo. O servidor valida a adjacência e registra a descoberta. A célula inicial é provisória e não usa GPS.</div>
+            <div className="map-note">Cada movimento válido avança 10 minutos. Pontos de interesse só aparecem após descobrir a célula correspondente. Nenhum GPS é solicitado; os dados reais entram pelo processo de importação documentado.</div>
           </article>
           <article className="story-card">
             <div className="section-kicker">DIÁRIO DE SOBREVIVÊNCIA</div>

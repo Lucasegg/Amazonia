@@ -5,6 +5,7 @@ from random import SystemRandom
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -16,12 +17,12 @@ from app.domain.world import (
     cell_key,
     hex_distance,
 )
-from app.models import Campaign, Character
+from app.models import Campaign, Character, PointOfInterest
 from app.schemas import CampaignCreate, CampaignRead, CharacterCreate, CharacterRead, MoveRequest
 
 app = FastAPI(
     title="Amazonia API",
-    version="0.4.0",
+    version="0.5.0",
     description="API inicial do RPG Amazonia. Regras e movimentação são validadas no servidor.",
 )
 
@@ -169,6 +170,23 @@ def create_character(
     return character
 
 
+def _visible_points_of_interest(db: Session, character: Character) -> list[PointOfInterest]:
+    """Busca somente POIs associados às células já descobertas pelo personagem."""
+    discovered_positions = []
+    for key in character.discovered_cells or []:
+        try:
+            q_value, r_value = (int(part) for part in key.split(":", maxsplit=1))
+        except (ValueError, TypeError):
+            continue
+        discovered_positions.append(and_(
+            PointOfInterest.cell_q == q_value,
+            PointOfInterest.cell_r == r_value,
+        ))
+    if not discovered_positions:
+        return []
+    return db.query(PointOfInterest).filter(or_(*discovered_positions)).all()
+
+
 @app.get("/api/v1/campaigns/{campaign_id}/map", tags=["exploracao"])
 def get_campaign_map(campaign_id: str, db: Session = Depends(get_db)) -> dict[str, object]:
     """Retorna a grade hexagonal visível e somente o estado descoberto."""
@@ -177,7 +195,7 @@ def get_campaign_map(campaign_id: str, db: Session = Depends(get_db)) -> dict[st
         raise HTTPException(status_code=404, detail="Campanha não encontrada.")
     if campaign.character is None:
         raise HTTPException(status_code=409, detail="Crie o personagem antes de explorar.")
-    return build_map_data(campaign, campaign.character)
+    return build_map_data(campaign, campaign.character, _visible_points_of_interest(db, campaign.character))
 
 
 @app.post("/api/v1/campaigns/{campaign_id}/move", tags=["exploracao"])
@@ -216,4 +234,4 @@ def move_character(
     db.commit()
     db.refresh(campaign)
     db.refresh(character)
-    return build_map_data(campaign, character)
+    return build_map_data(campaign, character, _visible_points_of_interest(db, character))

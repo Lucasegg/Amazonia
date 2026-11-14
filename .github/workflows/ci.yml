@@ -34,7 +34,7 @@ jobs:
       - name: Executar testes
         run: pytest
       - name: Verificar sintaxe
-        run: python -m compileall -q app migrations
+        run: python -m compileall -q app migrations scripts
 
   web:
     name: Web - auditoria, TypeScript e build

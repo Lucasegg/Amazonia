@@ -9,6 +9,18 @@ export type MapCell = {
   adjacent: boolean;
 };
 
+export type MapPointOfInterest = {
+  id: string;
+  name: string;
+  category: string;
+  latitude: number;
+  longitude: number;
+  cell_q: number;
+  cell_r: number;
+  source: string;
+  source_license: string;
+};
+
 export type MapData = {
   campaign_id: string;
   world_time_minutes: number;
@@ -20,4 +32,5 @@ export type MapData = {
   };
   hex_radius_meters: number;
   cells: MapCell[];
+  points_of_interest: MapPointOfInterest[];
 };
