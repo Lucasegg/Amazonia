@@ -24,7 +24,8 @@ from app.domain.world import (
 )
 from app.models import Campaign, Character, PointOfInterest, User
 from app.schemas import AuthResponse, CampaignCreate, CampaignRead, CharacterCreate, CharacterRead, LoginRequest, MoveRequest, RegisterRequest, UseItemRequest, UserRead
-from app.auth import clear_session_cookies, get_current_user, hash_password, set_session_cookies, verify_password
+from app.auth import clear_auth_attempts, clear_session_cookies, get_current_user, hash_password, is_rate_limited, record_auth_attempt, set_session_cookies, verify_password
+from datetime import timedelta
 
 app = FastAPI(
     title="Amazonia API",
@@ -140,8 +141,11 @@ def get_origin(origin_id: str) -> dict[str, object]:
 
 
 @app.post("/api/v1/auth/register", response_model=AuthResponse, status_code=201, tags=["autenticacao"])
-def register(payload: RegisterRequest, response: Response, db: Session = Depends(get_db)) -> dict[str, object]:
-    """Cria uma conta com senha derivada por Argon2id e inicia sessão."""
+def register(payload: RegisterRequest, response: Response, request: Request, db: Session = Depends(get_db)) -> dict[str, object]:
+    """Cria conta com senha Argon2id e limita cadastros por IP."""
+    client_ip = request.client.host if request.client else "unknown"
+    if is_rate_limited(db, "register_ip", client_ip, 5, timedelta(hours=1)):
+        raise HTTPException(status_code=429, detail="Muitas tentativas de cadastro. Tente novamente mais tarde.")
     if db.query(User).filter(User.email == payload.email).first() is not None:
         raise HTTPException(status_code=409, detail="Este e-mail já possui uma conta.")
     user = User(email=payload.email, display_name=payload.display_name.strip(), password_hash=hash_password(payload.password))
@@ -152,23 +156,33 @@ def register(payload: RegisterRequest, response: Response, db: Session = Depends
         db.rollback()
         raise HTTPException(status_code=409, detail="Este e-mail já possui uma conta.") from exc
     db.refresh(user)
-    set_session_cookies(response, user.id)
+    record_auth_attempt(db, "register_ip", client_ip)
+    set_session_cookies(response, user.id, user.session_version)
     return {"user": user}
 
 
 @app.post("/api/v1/auth/login", response_model=AuthResponse, tags=["autenticacao"])
-def login(payload: LoginRequest, response: Response, db: Session = Depends(get_db)) -> dict[str, object]:
-    """Autentica por e-mail e senha sem revelar qual campo falhou."""
+def login(payload: LoginRequest, response: Response, request: Request, db: Session = Depends(get_db)) -> dict[str, object]:
+    """Autentica sem enumerar contas e aplica limites persistentes por e-mail e IP."""
+    client_ip = request.client.host if request.client else "unknown"
+    if is_rate_limited(db, "login_email", payload.email, 5, timedelta(minutes=15)) or is_rate_limited(db, "login_ip", client_ip, 20, timedelta(minutes=15)):
+        raise HTTPException(status_code=429, detail="Muitas tentativas de acesso. Aguarde antes de tentar novamente.")
     user = db.query(User).filter(User.email == payload.email).first()
     if user is None or not verify_password(payload.password, user.password_hash):
-        raise HTTPException(status_code=401, detail="E-mail ou senha inválidos.", headers={"WWW-Authenticate": "Bearer"})
-    set_session_cookies(response, user.id)
+        record_auth_attempt(db, "login_email", payload.email)
+        record_auth_attempt(db, "login_ip", client_ip)
+        raise HTTPException(status_code=401, detail="E-mail ou senha inválidos.")
+    clear_auth_attempts(db, "login_email", payload.email)
+    clear_auth_attempts(db, "login_ip", client_ip)
+    set_session_cookies(response, user.id, user.session_version)
     return {"user": user}
 
 
 @app.post("/api/v1/auth/logout", status_code=204, tags=["autenticacao"])
-def logout(response: Response) -> Response:
-    """Encerra a sessão removendo os cookies do navegador."""
+def logout(response: Response, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> Response:
+    """Revoga todas as sessões emitidas para a conta e remove os cookies."""
+    current_user.session_version += 1
+    db.commit()
     clear_session_cookies(response)
     response.status_code = 204
     return response
