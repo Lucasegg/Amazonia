@@ -143,7 +143,7 @@ function App() {
         setAuthNotice(result.message); setAuthMode("login"); setPassword(""); return;
       }
       if (authMode === "forgot") {
-        const result = await apiRequest<{ message: string }>("/api/v1/auth/forgot-password", { method: "POST", body: JSON.stringify({ email, password: "not-used" }) });
+        const result = await apiRequest<{ message: string }>("/api/v1/auth/forgot-password", { method: "POST", body: JSON.stringify({ email }) });
         setAuthNotice(result.message); setAuthMode("login"); return;
       }
       if (authMode === "reset") {
