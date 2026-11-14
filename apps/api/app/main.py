@@ -1,4 +1,7 @@
+import os
+
 from fastapi import Depends, FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -11,6 +14,22 @@ app = FastAPI(
     title="Amazonia API",
     version="0.2.0",
     description="API inicial do RPG Amazonia. O motor de regras é determinístico e independente da IA.",
+)
+
+allowed_origins = [
+    origin.strip()
+    for origin in os.getenv(
+        "AMAZONIA_CORS_ORIGINS",
+        "http://localhost:5173,http://127.0.0.1:5173",
+    ).split(",")
+    if origin.strip()
+]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins,
+    allow_credentials=False,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
 )
 
 
