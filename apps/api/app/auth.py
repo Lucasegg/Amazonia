@@ -128,6 +128,8 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
     user = db.get(User, user_id)
     if user is None or user.session_version != version:
         raise unauthorized
+    if os.getenv("AMAZONIA_REQUIRE_EMAIL_VERIFICATION", "true").strip().lower() in {"1", "true", "yes"} and user.email_verified_at is None:
+        raise unauthorized
     return user
 
 
