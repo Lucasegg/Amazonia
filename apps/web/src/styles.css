@@ -98,3 +98,15 @@ footer { display: flex; justify-content: space-between; gap: 18px; padding: 22px
 .rest-button { width: 100%; margin-top: 20px; padding: 12px; border: 1px solid #78945d; background: #1d2c20; color: var(--green); font: 9px ui-monospace, monospace; letter-spacing: .12em; cursor: pointer; }
 .rest-button:hover:not(:disabled) { background: #30452f; }
 .rest-button:disabled { opacity: .45; cursor: wait; }
+
+
+.logout-button, .auth-switch { border: 1px solid var(--line); padding: 7px 10px; background: transparent; color: var(--green); cursor: pointer; font: 9px ui-monospace, monospace; letter-spacing: .08em; }
+.auth-switch { margin-top: 16px; width: 100%; padding: 12px; font-size: 10px; }
+.saved-campaigns { display: grid; gap: 8px; margin: 22px 0 26px; }
+.saved-campaign { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; padding: 13px; text-align: left; border: 1px solid var(--line); background: #111a14; color: #edf2e9; cursor: pointer; }
+.saved-campaign:hover:not(:disabled) { border-color: var(--green); background: #1b2a1e; }
+.saved-campaign:disabled { opacity: .5; cursor: wait; }
+.saved-campaign strong, .saved-campaign small { display: block; }
+.saved-campaign strong { font-size: 12px; }
+.saved-campaign small { margin-top: 5px; color: var(--muted); font-size: 9px; }
+.saved-campaign b { color: var(--green); font: 9px ui-monospace, monospace; white-space: nowrap; }
