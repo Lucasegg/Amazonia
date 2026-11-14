@@ -1,4 +1,5 @@
 """Contratos HTTP para contas, campanhas, personagens e movimentação."""
+from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from app.domain.rules import Origin
 
@@ -43,10 +44,25 @@ class CharacterAttributes(BaseModel):
     raciocinio: int = Field(default=3, ge=1, le=5)
     presenca: int = Field(default=3, ge=1, le=5)
 
+class CharacterAppearance(BaseModel):
+    hair_style: Literal["curto", "longo", "raspado", "cacheado", "trancas"] = "curto"
+    hair_color: Literal["preto", "castanho", "loiro", "ruivo", "grisalho"] = "preto"
+    eye_color: Literal["castanho", "preto", "azul", "verde", "mel"] = "castanho"
+    skin_tone: Literal["claro", "medio", "escuro"] = "medio"
+    tattoo_style: Literal["nenhuma", "minimalista", "geometrica", "tradicional"] = "nenhuma"
+    tattoo_placement: Literal["nenhuma", "braco", "antebraco", "ombro", "pescoco"] = "nenhuma"
+    tattoo_scale: Literal["pequena", "media", "grande"] = "pequena"
+    shirt_model: Literal["camiseta", "regata", "manga_longa", "jaqueta"] = "camiseta"
+    shirt_color: Literal["preta", "cinza", "azul", "verde", "vermelha", "bege"] = "cinza"
+    pants_model: Literal["jeans", "cargo", "tatico", "bermuda"] = "cargo"
+    pants_color: Literal["preta", "azul", "verde", "marrom", "bege"] = "verde"
+
+
 class CharacterCreate(BaseModel):
     name: str = Field(min_length=2, max_length=80)
     origin: Origin
     attributes: CharacterAttributes = Field(default_factory=CharacterAttributes)
+    appearance: CharacterAppearance = Field(default_factory=CharacterAppearance)
 
 class MoveRequest(BaseModel):
     target_q: int = Field(ge=-50, le=50)
@@ -59,6 +75,7 @@ class CharacterRead(BaseModel):
     name: str
     origin: str
     attributes: dict[str, int]
+    appearance: dict[str, str]
     skills: dict[str, int]
     inventory: list[str]
     needs: dict[str, int]

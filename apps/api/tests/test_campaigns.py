@@ -91,6 +91,8 @@ def test_create_character_uses_origin_package():
     assert character["skills"] == {"primeiros_socorros": 2, "investigacao_sintomas": 1}
     assert character["inventory"] == ["kit_atendimento_basico", "agua_potavel", "racao"]
     assert character["needs"]["health"] == 100
+    assert character["appearance"]["hair_style"] == "curto"
+    assert character["appearance"]["shirt_model"] == "camiseta"
     assert character["position_q"] == 0
     assert character["position_r"] == 0
     assert character["discovered_cells"] == ["0:0"]
@@ -523,3 +525,41 @@ def test_password_reset_token_is_single_use_and_revokes_existing_sessions(monkey
         "password": "Outra-senha-segura-2026",
     })
     assert reused.status_code == 400
+
+
+def test_character_appearance_is_validated_and_persisted():
+    """Aceita cosméticos do catálogo e rejeita valores arbitrários."""
+    campaign = create_campaign("Aparência personalizada")
+    payload = {
+        "name": "Joana",
+        "origin": "mecanico",
+        "appearance": {
+            "hair_style": "trancas",
+            "hair_color": "castanho",
+            "eye_color": "verde",
+            "skin_tone": "escuro",
+            "tattoo_style": "geometrica",
+            "tattoo_placement": "antebraco",
+            "tattoo_scale": "media",
+            "shirt_model": "jaqueta",
+            "shirt_color": "bege",
+            "pants_model": "tatico",
+            "pants_color": "preta",
+        },
+    }
+    created = client.post(f"/api/v1/campaigns/{campaign['id']}/character", json=payload)
+    assert created.status_code == 201
+    assert created.json()["appearance"] == payload["appearance"]
+    persisted = client.get(f"/api/v1/campaigns/{campaign['id']}")
+    assert persisted.json()["character"]["appearance"] == payload["appearance"]
+
+
+def test_character_rejects_appearance_outside_catalog():
+    """A API impede cosméticos não permitidos pelo catálogo do jogo."""
+    campaign = create_campaign("Cosmético inválido")
+    response = client.post(f"/api/v1/campaigns/{campaign['id']}/character", json={
+        "name": "João",
+        "origin": "bombeiro",
+        "appearance": {"hair_style": "qualquer-coisa"},
+    })
+    assert response.status_code == 422

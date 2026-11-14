@@ -87,3 +87,8 @@ As migrações 0004 e 0005 criam contas, propriedade opcional de campanhas, vers
 ### Verificação de e-mail e recuperação de senha
 
 Em ambientes publicados, configure `AMAZONIA_REQUIRE_EMAIL_VERIFICATION=true`, `AMAZONIA_WEB_URL`, as variáveis SMTP e `AMAZONIA_OWNER_EMAIL` conforme `docs/deploy-vercel-neon.md`. Cadastro exige confirmação por link de uso único; recuperação expira em 30 minutos e revoga sessões antigas. O papel `owner` só é concedido após confirmação do e-mail configurado, nunca por endereço hardcoded.
+
+
+### Editor de personagem
+
+A criação do personagem permite escolher aparência cosmética: cabelo, olhos, tom de pele, tatuagens e roupas. O servidor valida os valores e persiste a seleção. Essas opções são visuais e não alteram atributos, habilidades ou profissão. A migração é `0007_character_appearance`.

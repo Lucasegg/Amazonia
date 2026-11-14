@@ -345,6 +345,7 @@ def create_character(
         name=payload.name.strip(),
         origin=profile.id.value,
         attributes=payload.attributes.model_dump(),
+        appearance=payload.appearance.model_dump(),
         skills=dict(profile.starting_skills),
         inventory=list(profile.starting_items),
         needs={"hunger": 0, "thirst": 0, "fatigue": 0, "health": 100},

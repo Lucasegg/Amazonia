@@ -14,12 +14,24 @@ type Origin = {
   contextual_strength: string;
 };
 
+type Appearance = {
+  hair_style: string; hair_color: string; eye_color: string; skin_tone: string;
+  tattoo_style: string; tattoo_placement: string; tattoo_scale: string;
+  shirt_model: string; shirt_color: string; pants_model: string; pants_color: string;
+};
+const DEFAULT_APPEARANCE: Appearance = {
+  hair_style: "curto", hair_color: "preto", eye_color: "castanho", skin_tone: "medio",
+  tattoo_style: "nenhuma", tattoo_placement: "nenhuma", tattoo_scale: "pequena",
+  shirt_model: "camiseta", shirt_color: "cinza", pants_model: "cargo", pants_color: "verde",
+};
+
 type Character = {
   id: string;
   campaign_id: string;
   name: string;
   origin: string;
   attributes: Record<string, number>;
+  appearance: Appearance;
   skills: Record<string, number>;
   inventory: string[];
   needs: Record<string, number>;
@@ -90,6 +102,7 @@ function App() {
   const [resting, setResting] = useState(false);
   const [campaignName, setCampaignName] = useState("Minha primeira campanha");
   const [characterName, setCharacterName] = useState("");
+  const [appearance, setAppearance] = useState<Appearance>(DEFAULT_APPEARANCE);
   const [selectedOrigin, setSelectedOrigin] = useState("bombeiro");
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [mapData, setMapData] = useState<MapData | null>(null);
@@ -208,7 +221,7 @@ function App() {
     try {
       const character = await apiRequest<Character>(`/api/v1/campaigns/${campaign.id}/character`, {
         method: "POST",
-        body: JSON.stringify({ name: characterName, origin: selectedOrigin }),
+        body: JSON.stringify({ name: characterName, origin: selectedOrigin, appearance }),
       });
       setCampaign({ ...campaign, character });
       const initialMap = await apiRequest<MapData>(`/api/v1/campaigns/${campaign.id}/map`);
@@ -355,6 +368,53 @@ function App() {
             <select id="origin" value={selectedOrigin} onChange={(event) => setSelectedOrigin(event.target.value)}>
               {origins.map((origin) => <option key={origin.id} value={origin.id}>{origin.label}</option>)}
             </select>
+            <div className="section-kicker lower">APARÊNCIA DO PERSONAGEM</div>
+            <div className="appearance-grid">
+              <label htmlFor="hair-style">Cabelo</label>
+              <select id="hair-style" value={appearance.hair_style} onChange={(event) => setAppearance({...appearance, hair_style:event.target.value})}>
+                <option value="curto">Curto</option><option value="longo">Longo</option><option value="raspado">Raspado</option><option value="cacheado">Cacheado</option><option value="trancas">Tranças</option>
+              </select>
+              <label htmlFor="hair-color">Cor do cabelo</label>
+              <select id="hair-color" value={appearance.hair_color} onChange={(event) => setAppearance({...appearance, hair_color:event.target.value})}>
+                <option value="preto">Preto</option><option value="castanho">Castanho</option><option value="loiro">Loiro</option><option value="ruivo">Ruivo</option><option value="grisalho">Grisalho</option>
+              </select>
+              <label htmlFor="eye-color">Olhos</label>
+              <select id="eye-color" value={appearance.eye_color} onChange={(event) => setAppearance({...appearance, eye_color:event.target.value})}>
+                <option value="castanho">Castanhos</option><option value="preto">Pretos</option><option value="azul">Azuis</option><option value="verde">Verdes</option><option value="mel">Mel</option>
+              </select>
+              <label htmlFor="skin-tone">Tom de pele</label>
+              <select id="skin-tone" value={appearance.skin_tone} onChange={(event) => setAppearance({...appearance, skin_tone:event.target.value})}>
+                <option value="claro">Claro</option><option value="medio">Médio</option><option value="escuro">Escuro</option>
+              </select>
+              <label htmlFor="tattoo-style">Tatuagem</label>
+              <select id="tattoo-style" value={appearance.tattoo_style} onChange={(event) => setAppearance({...appearance, tattoo_style:event.target.value})}>
+                <option value="nenhuma">Nenhuma</option><option value="minimalista">Minimalista</option><option value="geometrica">Geométrica</option><option value="tradicional">Tradicional</option>
+              </select>
+              <label htmlFor="tattoo-placement">Local da tatuagem</label>
+              <select id="tattoo-placement" value={appearance.tattoo_placement} onChange={(event) => setAppearance({...appearance, tattoo_placement:event.target.value})}>
+                <option value="nenhuma">Nenhum</option><option value="braco">Braço</option><option value="antebraco">Antebraço</option><option value="ombro">Ombro</option><option value="pescoco">Pescoço</option>
+              </select>
+              <label htmlFor="tattoo-scale">Tamanho da tatuagem</label>
+              <select id="tattoo-scale" value={appearance.tattoo_scale} onChange={(event) => setAppearance({...appearance, tattoo_scale:event.target.value})}>
+                <option value="pequena">Pequena</option><option value="media">Média</option><option value="grande">Grande</option>
+              </select>
+              <label htmlFor="shirt-model">Parte superior</label>
+              <select id="shirt-model" value={appearance.shirt_model} onChange={(event) => setAppearance({...appearance, shirt_model:event.target.value})}>
+                <option value="camiseta">Camiseta</option><option value="regata">Regata</option><option value="manga_longa">Manga longa</option><option value="jaqueta">Jaqueta</option>
+              </select>
+              <label htmlFor="shirt-color">Cor da roupa</label>
+              <select id="shirt-color" value={appearance.shirt_color} onChange={(event) => setAppearance({...appearance, shirt_color:event.target.value})}>
+                <option value="preta">Preta</option><option value="cinza">Cinza</option><option value="azul">Azul</option><option value="verde">Verde</option><option value="vermelha">Vermelha</option><option value="bege">Bege</option>
+              </select>
+              <label htmlFor="pants-model">Parte inferior</label>
+              <select id="pants-model" value={appearance.pants_model} onChange={(event) => setAppearance({...appearance, pants_model:event.target.value})}>
+                <option value="jeans">Jeans</option><option value="cargo">Cargo</option><option value="tatico">Tático</option><option value="bermuda">Bermuda</option>
+              </select>
+              <label htmlFor="pants-color">Cor da calça</label>
+              <select id="pants-color" value={appearance.pants_color} onChange={(event) => setAppearance({...appearance, pants_color:event.target.value})}>
+                <option value="preta">Preta</option><option value="azul">Azul</option><option value="verde">Verde</option><option value="marrom">Marrom</option><option value="bege">Bege</option>
+              </select>
+            </div>
             {chosenOrigin && (
               <div className="origin-preview">
                 <div><span className="preview-label">VANTAGEM CONTEXTUAL</span><strong>{chosenOrigin.contextual_strength}</strong></div>
