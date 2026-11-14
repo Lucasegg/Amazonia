@@ -4,3 +4,10 @@
 node_modules/
 .next/
 .vercel/
+.venv/
+venv/
+__pycache__/
+.pytest_cache/
+*.py[cod]
+dist/
+build/
