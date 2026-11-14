@@ -23,7 +23,7 @@ from app.domain.world import (
     hex_distance,
 )
 from app.models import Campaign, Character, PointOfInterest, User
-from app.schemas import AccountTokenRequest, AuthResponse, CampaignCreate, CampaignRead, CharacterCreate, CharacterRead, LoginRequest, MoveRequest, PasswordResetRequest, RegisterRequest, UseItemRequest, UserRead
+from app.schemas import AccountTokenRequest, AuthResponse, EmailAddressRequest, CampaignCreate, CampaignRead, CharacterCreate, CharacterRead, LoginRequest, MoveRequest, PasswordResetRequest, RegisterRequest, UseItemRequest, UserRead
 from app.auth import clear_auth_attempts, clear_session_cookies, consume_account_token, create_account_token, get_current_user, hash_password, is_rate_limited, record_auth_attempt, set_csrf_cookie, set_session_cookies, verify_password
 from app.email_delivery import send_account_email
 from datetime import datetime, timedelta, timezone
@@ -201,7 +201,7 @@ def verify_email(payload: AccountTokenRequest, response: Response, db: Session =
 
 
 @app.post("/api/v1/auth/resend-verification", status_code=202, tags=["autenticacao"])
-def resend_verification(payload: LoginRequest, request: Request, db: Session = Depends(get_db)) -> dict[str, str]:
+def resend_verification(payload: EmailAddressRequest, request: Request, db: Session = Depends(get_db)) -> dict[str, str]:
     """Reenvia confirmação sem revelar se o endereço está cadastrado."""
     client_ip = request.client.host if request.client else "unknown"
     if is_rate_limited(db, "verify_email", payload.email, 3, timedelta(hours=1)) or is_rate_limited(db, "verify_ip", client_ip, 10, timedelta(hours=1)):
@@ -217,7 +217,7 @@ def resend_verification(payload: LoginRequest, request: Request, db: Session = D
 
 
 @app.post("/api/v1/auth/forgot-password", status_code=202, tags=["autenticacao"])
-def forgot_password(payload: LoginRequest, request: Request, db: Session = Depends(get_db)) -> dict[str, str]:
+def forgot_password(payload: EmailAddressRequest, request: Request, db: Session = Depends(get_db)) -> dict[str, str]:
     """Solicita recuperação sem revelar a existência da conta."""
     client_ip = request.client.host if request.client else "unknown"
     if is_rate_limited(db, "reset_email", payload.email, 3, timedelta(hours=1)) or is_rate_limited(db, "reset_ip", client_ip, 10, timedelta(hours=1)):
