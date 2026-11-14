@@ -66,3 +66,19 @@ Nenhum POI real é inventado ou incluído por padrão. O processo de aquisição
     npm run build
 
 A CI executa testes e validação de migrações da API, auditoria de dependências frontend e build do frontend.
+
+## Contas e campanhas privadas
+
+A API usa sessão web em cookie HttpOnly, senha com Argon2id e campanhas vinculadas ao proprietário. O cookie de sessão é assinado HS256 e expira em 12 horas. Configure AMAZONIA_AUTH_SECRET com pelo menos 32 caracteres aleatórios no ambiente da API; nunca reutilize o segredo de CI.
+
+Endpoints:
+- POST /api/v1/auth/register
+- POST /api/v1/auth/login
+- POST /api/v1/auth/logout
+- GET /api/v1/auth/me
+
+O navegador recebe cookie de sessão HttpOnly e cookie CSRF separado. Requisições mutáveis com Origin exigem origem permitida e X-CSRF-Token. O logout incrementa session_version no banco e invalida todos os cookies emitidos anteriormente, inclusive cópias roubadas. Tentativas de login/cadastro têm limites persistidos no banco; e-mail e IP são armazenados somente como HMAC.
+
+As migrações 0004 e 0005 criam contas, propriedade opcional de campanhas, versão de sessão e tabela de tentativas. Campanhas antigas sem proprietário não são atribuídas automaticamente.
+
+**Limitação atual:** verificação de e-mail e recuperação de senha ainda dependem da integração e configuração de um provedor transacional de e-mail. Não considere o fluxo de conta pronto para produção até esses recursos, o teste com duas contas e a configuração segura da Vercel estarem concluídos.

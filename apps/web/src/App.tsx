@@ -3,6 +3,8 @@ import MapView from "./MapView";
 import type { InventoryItem, MapData } from "./types";
 
 const API_BASE = (import.meta.env.VITE_API_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
+type Account = { id: string; email: string; display_name: string };
+type AuthResponse = { user: Account; csrf_token: string };
 
 type Origin = {
   id: string;
@@ -43,16 +45,26 @@ const DIRECTIONS = [
   { label: "NW", q: -1, r: 0 },
 ];
 
+let csrfToken: string | null = null;
+
 async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  const method = (init?.method || "GET").toUpperCase();
+  const requestCsrfToken = method === "GET" || method === "HEAD" ? null : csrfToken;
   const response = await fetch(`${API_BASE}${path}`, {
     ...init,
-    headers: { "Content-Type": "application/json", ...init?.headers },
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      ...(requestCsrfToken ? { "X-CSRF-Token": requestCsrfToken } : {}),
+      ...init?.headers,
+    },
   });
   if (!response.ok) {
     const payload = await response.json().catch(() => null);
     const detail = payload?.detail;
     throw new Error(typeof detail === "string" ? detail : `Falha na comunicação com a API (${response.status}).`);
   }
+  if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }
 
@@ -64,6 +76,13 @@ function formatWorldTime(minutes: number): string {
 
 function App() {
   const [origins, setOrigins] = useState<Origin[]>([]);
+  const [account, setAccount] = useState<Account | null>(null);
+  const [authReady, setAuthReady] = useState(false);
+  const [authMode, setAuthMode] = useState<"login" | "register">("login");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [savedCampaigns, setSavedCampaigns] = useState<Campaign[]>([]);
   const [itemCatalog, setItemCatalog] = useState<InventoryItem[]>([]);
   const [usingItem, setUsingItem] = useState(false);
   const [resting, setResting] = useState(false);
@@ -79,24 +98,56 @@ function App() {
 
   useEffect(() => {
     let active = true;
-    Promise.all([
-      apiRequest<Origin[]>("/api/v1/game/origins"),
-      apiRequest<{ status: string }>("/health"),
-      apiRequest<InventoryItem[]>("/api/v1/game/items"),
-    ])
-      .then(([items, _health, catalog]) => {
+    apiRequest<{ csrf_token: string }>("/api/v1/auth/csrf")
+      .then((csrf) => { csrfToken = csrf.csrf_token; return apiRequest<Account>("/api/v1/auth/me"); })
+      .then(async (user) => {
+        if (!active) return;
+        setAccount(user);
+        const [items, _health, catalog, campaigns] = await Promise.all([
+          apiRequest<Origin[]>("/api/v1/game/origins"),
+          apiRequest<{ status: string }>("/health"),
+          apiRequest<InventoryItem[]>("/api/v1/game/items"),
+          apiRequest<Campaign[]>("/api/v1/campaigns"),
+        ]);
         if (!active) return;
         setOrigins(items);
         setItemCatalog(catalog);
+        setSavedCampaigns(campaigns);
         setApiReady(true);
         if (items.length > 0) setSelectedOrigin(items[0].id);
       })
-      .catch(() => {
-        if (active) setError("Não foi possível conectar à API. Inicie o backend e atualize a página.");
-      });
+      .catch(() => { if (active) setError(""); })
+      .finally(() => { if (active) setAuthReady(true); });
     return () => { active = false; };
   }, []);
 
+  async function handleAuth(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setError(""); setLoading(true);
+    try {
+      const path = authMode === "register" ? "/api/v1/auth/register" : "/api/v1/auth/login";
+      const payload = authMode === "register" ? { email, password, display_name: displayName } : { email, password };
+      const result = await apiRequest<AuthResponse>(path, { method: "POST", body: JSON.stringify(payload) });
+      csrfToken = result.csrf_token;
+      setAccount(result.user);
+      const [items, catalog, campaigns] = await Promise.all([apiRequest<Origin[]>("/api/v1/game/origins"), apiRequest<InventoryItem[]>("/api/v1/game/items"), apiRequest<Campaign[]>("/api/v1/campaigns")]);
+      setOrigins(items); setItemCatalog(catalog); setSavedCampaigns(campaigns); setApiReady(true);
+      if (items.length > 0) setSelectedOrigin(items[0].id); setPassword("");
+    } catch (err) { setError(err instanceof Error ? err.message : "Não foi possível autenticar."); }
+    finally { setLoading(false); setAuthReady(true); }
+  }
+
+  async function handleLogout() {
+    try { await apiRequest<void>("/api/v1/auth/logout", { method: "POST" }); } finally { csrfToken = null; setAccount(null); setCampaign(null); setMapData(null); setSavedCampaigns([]); setApiReady(false); }
+  }
+
+  async function handleResumeCampaign(campaignId: string) {
+    setError(""); setLoading(true);
+    try {
+      const loaded = await apiRequest<Campaign>("/api/v1/campaigns/" + campaignId); setCampaign(loaded);
+      setMapData(loaded.character ? await apiRequest<MapData>("/api/v1/campaigns/" + campaignId + "/map") : null);
+    } catch (err) { setError(err instanceof Error ? err.message : "Não foi possível retomar a campanha."); }
+    finally { setLoading(false); }
+  }
   async function handleCreateCampaign(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
@@ -107,6 +158,7 @@ function App() {
         body: JSON.stringify({ name: campaignName }),
       });
       setCampaign(created);
+      setSavedCampaigns((current) => [created, ...current]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Não foi possível criar a campanha.");
     } finally {
@@ -218,7 +270,7 @@ function App() {
           <span className="brand-mark">A</span>
           <span>AMAZONIA<small>UM RPG DE SOBREVIVÊNCIA</small></span>
         </a>
-        <div className="connection"><span className={apiReady ? "status-dot online" : "status-dot"} />{apiReady ? "SISTEMA CONECTADO" : "CONECTANDO AO SISTEMA"}</div>
+        <div className="connection"><span className={apiReady ? "status-dot online" : "status-dot"} />{account ? account.display_name : apiReady ? "SISTEMA CONECTADO" : "SISTEMA AMAZONIA"}{account && <button className="logout-button" type="button" onClick={handleLogout}>SAIR</button>}</div>
       </header>
 
       <section className="hero">
@@ -229,11 +281,26 @@ function App() {
 
       {error && <div className="error-banner" role="alert">{error}</div>}
 
-      {!campaign ? (
+      {!authReady ? (<section className="setup-card"><h2>Preparando sua sessão</h2></section>) : !account ? (<section className="setup-card">
+          <div className="section-kicker">ACESSO SEGURO · AMAZONIA</div>
+          <h2>{authMode === "login" ? "Entre na sua conta" : "Crie sua conta"}</h2>
+          <p className="muted">Suas campanhas ficam privadas e vinculadas à sua conta.</p>
+          <form onSubmit={handleAuth}>
+            {authMode === "register" && <><label htmlFor="display-name">Nome de exibição</label><input id="display-name" value={displayName} onChange={(event) => setDisplayName(event.target.value)} minLength={2} maxLength={80} required /></>}
+            <label htmlFor="account-email">E-mail</label>
+            <input id="account-email" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
+            <label htmlFor="account-password">Senha {authMode === "register" && "(mínimo 12 caracteres)"}</label>
+            <input id="account-password" type="password" autoComplete={authMode === "login" ? "current-password" : "new-password"} minLength={authMode === "register" ? 12 : 1} maxLength={128} value={password} onChange={(event) => setPassword(event.target.value)} required />
+            <button className="primary-button" type="submit" disabled={loading}>{loading ? "AGUARDE..." : authMode === "login" ? "ENTRAR" : "CRIAR CONTA"} <span>↗</span></button>
+          </form>
+          <button className="auth-switch" type="button" onClick={() => setAuthMode(authMode === "login" ? "register" : "login")}>{authMode === "login" ? "Ainda não tem conta? Criar conta" : "Já tem conta? Entrar"}</button>
+          <div className="footnote">SENHAS PROTEGIDAS · CAMPANHAS PRIVADAS · SESSÃO COM VALIDADE LIMITADA</div>
+        </section>) : !campaign ? (
         <section className="setup-card">
           <div className="section-kicker">01 / INÍCIO DA JORNADA</div>
           <h2>Prepare sua campanha</h2>
           <p className="muted">Dê um nome à sua jornada. O mundo será salvo para você continuar depois.</p>
+          {savedCampaigns.length > 0 && <div className="saved-campaigns"><div className="section-kicker">CONTINUAR JORNADA</div>{savedCampaigns.map((saved) => <button key={saved.id} type="button" className="saved-campaign" onClick={() => handleResumeCampaign(saved.id)} disabled={loading}><span><strong>{saved.name}</strong><small>{saved.character ? saved.character.name : "Personagem ainda não criado"} · {formatWorldTime(saved.world_time_minutes)}</small></span><b>RETOMAR ↗</b></button>)}</div>}
           <form onSubmit={handleCreateCampaign}>
             <label htmlFor="campaign-name">Nome da campanha</label>
             <input id="campaign-name" value={campaignName} onChange={(event) => setCampaignName(event.target.value)} minLength={2} maxLength={80} required />

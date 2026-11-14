@@ -1,3 +1,5 @@
+import os
+import pytest
 from collections.abc import Generator
 
 from fastapi.testclient import TestClient
@@ -8,7 +10,7 @@ from sqlalchemy.pool import StaticPool
 from app.database import Base, get_db
 from app.main import app
 from app import models  # noqa: F401
-from app.models import PointOfInterest
+from app.models import AuthAttempt, PointOfInterest
 
 
 test_engine = create_engine(
@@ -30,8 +32,22 @@ def override_get_db() -> Generator:
 
 Base.metadata.create_all(bind=test_engine)
 app.dependency_overrides[get_db] = override_get_db
+os.environ["AMAZONIA_AUTH_SECRET"] = "ci-test-secret-not-for-production-000000000000000000000000"
 client = TestClient(app)
+registration = client.post("/api/v1/auth/register", json={
+    "email": "jogador@example.com",
+    "display_name": "Jogador de Teste",
+    "password": "Senha-forte-de-teste-2026",
+})
+assert registration.status_code == 201
 
+
+@pytest.fixture(autouse=True)
+def reset_auth_attempts():
+    """Isola contadores de rate limit entre casos da suíte."""
+    with TestingSessionLocal() as session:
+        session.query(AuthAttempt).delete()
+        session.commit()
 
 def teardown_module():
     """Remove o override e as tabelas criadas para a suíte."""
@@ -255,3 +271,183 @@ def test_rest_action_recovers_fatigue_and_persists_time():
     persisted = client.get(f"/api/v1/campaigns/{campaign['id']}").json()
     assert persisted["character"]["needs"] == response.json()["needs"]
     assert persisted["world_time_minutes"] == 60
+
+
+def test_authentication_required_and_campaigns_are_isolated_by_owner():
+    """Exige token e impede que outra conta consulte campanha alheia."""
+    anonymous = TestClient(app)
+    denied = anonymous.post("/api/v1/campaigns", json={"name": "Sem sessão"})
+    assert denied.status_code == 401
+
+    owned = create_campaign("Campanha privada")
+    second = anonymous.post("/api/v1/auth/register", json={
+        "email": "outra-conta@example.com",
+        "display_name": "Outra Conta",
+        "password": "Outra-senha-forte-2026",
+    })
+    assert second.status_code == 201
+
+    assert anonymous.get("/api/v1/campaigns").status_code == 200
+    assert anonymous.get("/api/v1/campaigns").json() == []
+    assert anonymous.get(f"/api/v1/campaigns/{owned['id']}").status_code == 404
+    assert anonymous.post(f"/api/v1/campaigns/{owned['id']}/rest").status_code == 404
+
+
+def test_login_normalizes_email_and_rejects_invalid_password():
+    """Aceita e-mail normalizado e não revela credenciais inválidas."""
+    response = TestClient(app).post("/api/v1/auth/login", json={
+        "email": " JOGADOR@EXAMPLE.COM ",
+        "password": "Senha-forte-de-teste-2026",
+    })
+    assert response.status_code == 200
+    invalid = TestClient(app).post("/api/v1/auth/login", json={
+        "email": "jogador@example.com",
+        "password": "senha-incorreta",
+    })
+    assert invalid.status_code == 401
+
+
+def test_second_account_cannot_access_character_map_inventory_or_movement():
+    """Todas as operações de personagem respeitam o proprietário da campanha."""
+    owner_campaign = create_campaign("Dados privados do primeiro jogador")
+    create_character(owner_campaign["id"])
+
+    second_client = TestClient(app)
+    second = second_client.post("/api/v1/auth/register", json={
+        "email": "isolamento@example.com",
+        "display_name": "Conta Isolada",
+        "password": "Senha-forte-isolamento-2026",
+    })
+    assert second.status_code == 201
+    second_client.headers.update({
+    })
+
+    campaign_id = owner_campaign["id"]
+    assert second_client.get(f"/api/v1/campaigns/{campaign_id}/map").status_code == 404
+    assert second_client.post(
+        f"/api/v1/campaigns/{campaign_id}/move",
+        json={"target_q": 1, "target_r": 0},
+    ).status_code == 404
+    assert second_client.post(
+        f"/api/v1/campaigns/{campaign_id}/inventory/use",
+        json={"item_id": "agua_potavel"},
+    ).status_code == 404
+    assert second_client.post(f"/api/v1/campaigns/{campaign_id}/rest").status_code == 404
+
+    # O estado original continua intacto após todas as tentativas indevidas.
+    original = client.get(f"/api/v1/campaigns/{campaign_id}").json()
+    assert original["character"]["position_q"] == 0
+    assert original["character"]["position_r"] == 0
+    assert original["character"]["inventory"] == [
+        "kit_atendimento_basico", "agua_potavel", "racao"
+    ]
+    assert original["world_time_minutes"] == 0
+
+
+def test_all_campaign_mutations_require_authentication():
+    """Rotas de mutação não aceitam chamadas anônimas."""
+    campaign = create_campaign("Campanha protegida")
+    anonymous = TestClient(app)
+    campaign_id = campaign["id"]
+
+    assert anonymous.post(
+        f"/api/v1/campaigns/{campaign_id}/character",
+        json={"name": "Intruso", "origin": "mecanico"},
+    ).status_code == 401
+    assert anonymous.post(
+        f"/api/v1/campaigns/{campaign_id}/move",
+        json={"target_q": 1, "target_r": 0},
+    ).status_code == 401
+    assert anonymous.post(
+        f"/api/v1/campaigns/{campaign_id}/inventory/use",
+        json={"item_id": "agua_potavel"},
+    ).status_code == 401
+    assert anonymous.post(f"/api/v1/campaigns/{campaign_id}/rest").status_code == 401
+
+
+
+def test_auth_uses_http_only_session_cookie_and_logout_revokes_browser_session():
+    """A sessão não é devolvida no JSON e o logout limpa o cookie HttpOnly."""
+    account_client = TestClient(app)
+    response = account_client.post("/api/v1/auth/register", json={
+        "email": "cookie-session@example.com",
+        "display_name": "Cookie Session",
+        "password": "Senha-cookie-segura-2026",
+    })
+    assert response.status_code == 201
+    assert "access_token" not in response.json()
+    assert response.cookies.get("amazonia_session")
+    assert response.cookies.get("amazonia_csrf")
+    assert "HttpOnly" in response.headers.get("set-cookie", "")
+    assert account_client.get("/api/v1/auth/me").status_code == 200
+    browser_me = account_client.get("/api/v1/auth/me", headers={"Origin": "http://localhost:5173"})
+    assert browser_me.status_code == 200  # GET não exige cabeçalho CSRF.
+
+    # Mesmo que um cookie tenha sido copiado antes do logout, a versão da sessão o invalida.
+    stolen_session = TestClient(app)
+    stolen_session.cookies.set("amazonia_session", account_client.cookies.get("amazonia_session"))
+    stolen_session.cookies.set("amazonia_csrf", account_client.cookies.get("amazonia_csrf"))
+    logout = account_client.post("/api/v1/auth/logout")
+    assert logout.status_code == 204
+    assert account_client.get("/api/v1/auth/me").status_code == 401
+    assert stolen_session.get("/api/v1/auth/me").status_code == 401
+
+
+def test_browser_mutations_require_allowed_origin_and_csrf_token():
+    """Rejeita origem externa e requisição de navegador sem token CSRF."""
+    account_client = TestClient(app)
+    registered = account_client.post("/api/v1/auth/register", json={
+        "email": "csrf-session@example.com",
+        "display_name": "CSRF Session",
+        "password": "Senha-csrf-segura-2026",
+    })
+    assert registered.status_code == 201
+    campaign = account_client.post(
+        "/api/v1/campaigns",
+        json={"name": "Campanha CSRF"},
+        headers={"Origin": "https://evil.example"},
+    )
+    assert campaign.status_code == 403
+
+    csrf_missing = account_client.post(
+        "/api/v1/campaigns",
+        json={"name": "Campanha sem CSRF"},
+        headers={"Origin": "http://localhost:5173"},
+    )
+    assert csrf_missing.status_code == 403
+
+    csrf = account_client.cookies.get("amazonia_csrf")
+    allowed = account_client.post(
+        "/api/v1/campaigns",
+        json={"name": "Campanha com CSRF"},
+        headers={"Origin": "http://localhost:5173", "X-CSRF-Token": csrf},
+    )
+    assert allowed.status_code == 201
+
+
+
+def test_login_is_rate_limited_after_five_failed_attempts():
+    """Limita tentativas inválidas por e-mail mesmo entre clientes distintos."""
+    limited_client = TestClient(app)
+    payload = {"email": "bruteforce@example.com", "password": "senha-errada"}
+    for _ in range(5):
+        response = limited_client.post("/api/v1/auth/login", json=payload)
+        assert response.status_code == 401
+    blocked = limited_client.post("/api/v1/auth/login", json=payload)
+    assert blocked.status_code == 429
+
+
+
+def test_csrf_bootstrap_endpoint_supports_cross_origin_frontend():
+    """O Web obtém o token CSRF pelo endpoint da API sem ler cookie de outro host."""
+    browser = TestClient(app)
+    response = browser.get("/api/v1/auth/csrf", headers={"Origin": "http://localhost:5173"})
+    assert response.status_code == 200
+    token = response.json()["csrf_token"]
+    assert token
+    assert browser.cookies.get("amazonia_csrf") == token
+    blocked = browser.post("/api/v1/campaigns", json={"name": "Sem sessão"}, headers={
+        "Origin": "http://localhost:5173",
+        "X-CSRF-Token": token,
+    })
+    assert blocked.status_code == 401  # CSRF válido, mas sem sessão autenticada.
