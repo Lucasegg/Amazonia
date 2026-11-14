@@ -459,8 +459,8 @@ def test_csrf_bootstrap_endpoint_supports_cross_origin_frontend():
 
 def test_email_verification_is_required_and_owner_is_provisioned_only_after_verification(monkeypatch):
     """A conta só recebe sessão após confirmação; owner depende de e-mail confirmado."""
-    os.environ["AMAZONIA_REQUIRE_EMAIL_VERIFICATION"] = "true"
-    os.environ["AMAZONIA_OWNER_EMAIL"] = "owner-amazonia@example.com"
+    monkeypatch.setenv("AMAZONIA_REQUIRE_EMAIL_VERIFICATION", "true")
+    monkeypatch.setenv("AMAZONIA_OWNER_EMAIL", "owner-amazonia@example.com")
     sent = []
     monkeypatch.setattr(main_module, "send_account_email", lambda recipient, subject, body: sent.append(body))
     browser = TestClient(app)
@@ -485,13 +485,12 @@ def test_email_verification_is_required_and_owner_is_provisioned_only_after_veri
         assert owner.role == "owner"
         assert owner.email_verified_at is not None
     assert browser.post("/api/v1/auth/verify-email", json={"token": token}).status_code == 400
-    os.environ["AMAZONIA_REQUIRE_EMAIL_VERIFICATION"] = "false"
-    os.environ.pop("AMAZONIA_OWNER_EMAIL", None)
+
 
 
 def test_password_reset_token_is_single_use_and_revokes_existing_sessions(monkeypatch):
     """Recuperação troca a senha, consome o token e revoga cookies já emitidos."""
-    os.environ["AMAZONIA_REQUIRE_EMAIL_VERIFICATION"] = "false"
+    monkeypatch.setenv("AMAZONIA_REQUIRE_EMAIL_VERIFICATION", "false")
     sent = []
     monkeypatch.setattr(main_module, "send_account_email", lambda recipient, subject, body: sent.append(body))
     browser = TestClient(app)
