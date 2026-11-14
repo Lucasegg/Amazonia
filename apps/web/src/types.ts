@@ -35,3 +35,13 @@ export type MapData = {
   cells: MapCell[];
   points_of_interest: MapPointOfInterest[];
 };
+
+
+export type InventoryItem = {
+  id: string;
+  label: string;
+  description: string;
+  hunger_recovery: number;
+  thirst_recovery: number;
+  time_cost_minutes: number;
+};
