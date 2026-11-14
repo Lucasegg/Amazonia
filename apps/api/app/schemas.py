@@ -1,4 +1,4 @@
-"""Contratos HTTP para campanhas e personagens."""
+"""Contratos HTTP para campanhas, personagens e movimentação."""
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.domain.rules import Origin
@@ -22,6 +22,11 @@ class CharacterCreate(BaseModel):
     attributes: CharacterAttributes = Field(default_factory=CharacterAttributes)
 
 
+class MoveRequest(BaseModel):
+    target_q: int = Field(ge=-50, le=50)
+    target_r: int = Field(ge=-50, le=50)
+
+
 class CharacterRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -33,6 +38,9 @@ class CharacterRead(BaseModel):
     skills: dict[str, int]
     inventory: list[str]
     needs: dict[str, int]
+    position_q: int
+    position_r: int
+    discovered_cells: list[str]
 
 
 class CampaignRead(BaseModel):
