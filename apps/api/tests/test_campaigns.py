@@ -1,4 +1,5 @@
 import os
+import pytest
 from collections.abc import Generator
 
 from fastapi.testclient import TestClient
@@ -9,7 +10,7 @@ from sqlalchemy.pool import StaticPool
 from app.database import Base, get_db
 from app.main import app
 from app import models  # noqa: F401
-from app.models import PointOfInterest
+from app.models import AuthAttempt, PointOfInterest
 
 
 test_engine = create_engine(
@@ -40,6 +41,13 @@ registration = client.post("/api/v1/auth/register", json={
 })
 assert registration.status_code == 201
 
+
+@pytest.fixture(autouse=True)
+def reset_auth_attempts():
+    """Isola contadores de rate limit entre casos da suíte."""
+    with TestingSessionLocal() as session:
+        session.query(AuthAttempt).delete()
+        session.commit()
 
 def teardown_module():
     """Remove o override e as tabelas criadas para a suíte."""
