@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
+import MapView from "./MapView";
 
 const API_BASE = (import.meta.env.VITE_API_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
 
@@ -180,8 +181,8 @@ function App() {
           </article>
           <article className="map-card">
             <div className="section-kicker">MAPA DE EXPLORAÇÃO</div>
-            <div className="map-placeholder"><div className="map-grid-lines" /><div className="map-pin">⌖</div><span>GRANDE SÃO PAULO</span><small>MAPA INTERATIVO NA PRÓXIMA ETAPA</small></div>
-            <div className="map-note">A localização do personagem será fictícia e controlada pelo mundo do jogo. Nenhum GPS será solicitado.</div>
+            <MapView />
+            <div className="map-note">Mapa de referência centralizado na cidade de São Paulo. A posição inicial do personagem ainda não foi definida; nenhum GPS é solicitado. Os tiles públicos do OpenStreetMap são usados apenas no protótipo de desenvolvimento, com atribuição visível.</div>
           </article>
           <article className="story-card">
             <div className="section-kicker">DIÁRIO DE SOBREVIVÊNCIA</div>
