@@ -71,8 +71,21 @@ def create_access_token(user_id: str, session_version: int) -> str:
         _secret(), algorithm="HS256",
     )
 
-def set_session_cookies(response: Response, user_id: str, session_version: int) -> None:
-    """Cria sessão HttpOnly e token CSRF separado para double-submit."""
+def set_csrf_cookie(response: Response, token: str | None = None) -> str:
+    """Emite token CSRF acessível apenas ao JavaScript da origem da API."""
+    secure = _secure_cookie()
+    same_site = os.getenv("AMAZONIA_COOKIE_SAMESITE", "lax").lower()
+    if same_site not in {"lax", "strict", "none"}:
+        same_site = "lax"
+    if same_site == "none" and not secure:
+        raise HTTPException(status_code=500, detail="Cookies SameSite=None exigem HTTPS.")
+    value = token or secrets.token_urlsafe(32)
+    response.set_cookie(key=_CSRF_COOKIE, value=value, max_age=int(_TOKEN_LIFETIME.total_seconds()),
+        httponly=False, secure=secure, samesite=same_site, path="/")
+    return value
+
+def set_session_cookies(response: Response, user_id: str, session_version: int) -> str:
+    """Cria sessão HttpOnly e retorna CSRF para uso em memória no cliente."""
     secure = _secure_cookie()
     same_site = os.getenv("AMAZONIA_COOKIE_SAMESITE", "lax").lower()
     if same_site not in {"lax", "strict", "none"}:
@@ -81,8 +94,7 @@ def set_session_cookies(response: Response, user_id: str, session_version: int) 
         raise HTTPException(status_code=500, detail="Cookies SameSite=None exigem HTTPS.")
     response.set_cookie(key=_SESSION_COOKIE, value=create_access_token(user_id, session_version),
         max_age=int(_TOKEN_LIFETIME.total_seconds()), httponly=True, secure=secure, samesite=same_site, path="/")
-    response.set_cookie(key=_CSRF_COOKIE, value=secrets.token_urlsafe(32),
-        max_age=int(_TOKEN_LIFETIME.total_seconds()), httponly=False, secure=secure, samesite=same_site, path="/")
+    return set_csrf_cookie(response)
 
 def clear_session_cookies(response: Response) -> None:
     secure = _secure_cookie()
@@ -98,10 +110,11 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
         allowed = {item.strip() for item in os.getenv("AMAZONIA_CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",") if item.strip()}
         if origin not in allowed:
             raise HTTPException(status_code=403, detail="Origem não autorizada.")
-        csrf_cookie = request.cookies.get(_CSRF_COOKIE, "")
-        csrf_header = request.headers.get("x-csrf-token", "")
-        if not csrf_cookie or not csrf_header or not hmac.compare_digest(csrf_cookie, csrf_header):
-            raise HTTPException(status_code=403, detail="Validação CSRF obrigatória.")
+        if request.method not in {"GET", "HEAD", "OPTIONS"}:
+            csrf_cookie = request.cookies.get(_CSRF_COOKIE, "")
+            csrf_header = request.headers.get("x-csrf-token", "")
+            if not csrf_cookie or not csrf_header or not hmac.compare_digest(csrf_cookie, csrf_header):
+                raise HTTPException(status_code=403, detail="Validação CSRF obrigatória.")
     token = request.cookies.get(_SESSION_COOKIE)
     if not token:
         raise unauthorized
