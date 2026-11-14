@@ -15,6 +15,7 @@ from app.domain.world import (
     MAX_CELL_COORDINATE,
     MOVE_COST_MINUTES,
     apply_movement_needs,
+    apply_rest_needs,
     build_map_data,
     cell_key,
     hex_distance,
@@ -170,6 +171,28 @@ def create_character(
     db.commit()
     db.refresh(character)
     return character
+
+
+@app.post("/api/v1/campaigns/{campaign_id}/rest", tags=["sobrevivencia"])
+def rest_character(campaign_id: str, db: Session = Depends(get_db)) -> dict[str, object]:
+    """Descansa uma hora, recuperando fadiga e avançando o relógio."""
+    campaign = db.get(Campaign, campaign_id)
+    if campaign is None:
+        raise HTTPException(status_code=404, detail="Campanha não encontrada.")
+    character = campaign.character
+    if character is None:
+        raise HTTPException(status_code=409, detail="Crie o personagem antes de descansar.")
+
+    character.needs = apply_rest_needs(character.needs)
+    campaign.world_time_minutes += 60
+    db.commit()
+    db.refresh(campaign)
+    db.refresh(character)
+    return {
+        "needs": character.needs,
+        "world_time_minutes": campaign.world_time_minutes,
+        "rest_minutes": 60,
+    }
 
 
 @app.get("/api/v1/game/items", tags=["inventario"])

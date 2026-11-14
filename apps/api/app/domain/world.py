@@ -83,6 +83,23 @@ def apply_movement_needs(needs: dict[str, int] | None) -> dict[str, int]:
     return updated
 
 
+
+def apply_rest_needs(needs: dict[str, int] | None) -> dict[str, int]:
+    """Aplica uma hora de descanso simples com custos de sobrevivência.
+
+    Parâmetros provisórios: fadiga -30, fome +6 e sede +10. Saúde não é
+    recuperada nesta etapa; descanso seguro, ferimentos e sono prolongado
+    terão regras próprias.
+    """
+    current = needs or {}
+    return {
+        "hunger": min(100, max(0, int(current.get("hunger", 0))) + 6),
+        "thirst": min(100, max(0, int(current.get("thirst", 0))) + 10),
+        "fatigue": max(0, min(100, int(current.get("fatigue", 0))) - 30),
+        "health": min(100, max(0, int(current.get("health", 100)))),
+    }
+
+
 def build_map_data(
     campaign: Any,
     character: Any,

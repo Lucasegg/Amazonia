@@ -66,6 +66,7 @@ function App() {
   const [origins, setOrigins] = useState<Origin[]>([]);
   const [itemCatalog, setItemCatalog] = useState<InventoryItem[]>([]);
   const [usingItem, setUsingItem] = useState(false);
+  const [resting, setResting] = useState(false);
   const [campaignName, setCampaignName] = useState("Minha primeira campanha");
   const [characterName, setCharacterName] = useState("");
   const [selectedOrigin, setSelectedOrigin] = useState("bombeiro");
@@ -186,6 +187,28 @@ function App() {
     }
   }
 
+  async function handleRest() {
+    if (!campaign || !campaign.character || resting || usingItem || moving) return;
+    setError("");
+    setResting(true);
+    try {
+      const result = await apiRequest<{
+        needs: Record<string, number>;
+        world_time_minutes: number;
+      }>(`/api/v1/campaigns/${campaign.id}/rest`, { method: "POST" });
+      setCampaign({
+        ...campaign,
+        world_time_minutes: result.world_time_minutes,
+        character: { ...campaign.character, needs: result.needs },
+      });
+      setMapData(mapData ? { ...mapData, world_time_minutes: result.world_time_minutes, character_needs: result.needs } : null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Não foi possível descansar.");
+    } finally {
+      setResting(false);
+    }
+  }
+
   const chosenOrigin = origins.find((origin) => origin.id === selectedOrigin);
 
   return (
@@ -258,6 +281,7 @@ function App() {
               <div><span>SEDE</span><strong>{campaign.character.needs.thirst}%</strong></div>
               <div><span>FADIGA</span><strong>{campaign.character.needs.fatigue}%</strong></div>
             </div>
+            <button className="rest-button" type="button" disabled={resting || usingItem || moving} onClick={handleRest}>{resting ? "DESCANSANDO..." : "DESCANSAR · 1 HORA"}</button>
             <div className="section-kicker lower">INVENTÁRIO</div>
             <div className="inventory-list">
               {itemCatalog.filter((item) => campaign.character?.inventory.includes(item.id)).map((item) => {
