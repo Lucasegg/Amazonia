@@ -9,7 +9,8 @@ from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.domain.inventory import ITEMS, InventoryRuleError, consume_item\nfrom app.domain.rules import ORIGINS, Origin, RuleValidationError, resolve_check
+from app.domain.inventory import ITEMS, InventoryRuleError, consume_item
+from app.domain.rules import ORIGINS, Origin, RuleValidationError, resolve_check
 from app.domain.world import (
     MAX_CELL_COORDINATE,
     MOVE_COST_MINUTES,
