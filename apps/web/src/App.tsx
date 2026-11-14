@@ -114,12 +114,18 @@ function App() {
   useEffect(() => {
     let active = true;
     const query = new URLSearchParams(window.location.search);
-    const verificationToken = query.get("verify");
-    const recoveryToken = query.get("reset");
+    const fragment = new URLSearchParams(window.location.hash.slice(1));
+    // Fragmentos não chegam ao servidor; mantemos leitura de links antigos com query.
+    const verificationToken = fragment.get("verify") || query.get("verify");
+    const recoveryToken = fragment.get("reset") || query.get("reset");
     if (recoveryToken) { setResetToken(recoveryToken); setAuthMode("reset"); }
     if (verificationToken || recoveryToken) {
       // Remove token da barra de endereço e do histórico assim que for capturado.
-      window.history.replaceState({}, "", window.location.pathname);
+      const cleanUrl = new URL(window.location.href);
+      cleanUrl.searchParams.delete("verify");
+      cleanUrl.searchParams.delete("reset");
+      cleanUrl.hash = "";
+      window.history.replaceState({}, "", cleanUrl.pathname + cleanUrl.search);
     }
     apiRequest<{ csrf_token: string }>("/api/v1/auth/csrf")
       .then(async (csrf) => {
