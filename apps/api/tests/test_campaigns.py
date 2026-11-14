@@ -299,3 +299,62 @@ def test_login_normalizes_email_and_rejects_invalid_password():
         "password": "senha-incorreta",
     })
     assert invalid.status_code == 401
+
+
+def test_second_account_cannot_access_character_map_inventory_or_movement():
+    """Todas as operações de personagem respeitam o proprietário da campanha."""
+    owner_campaign = create_campaign("Dados privados do primeiro jogador")
+    create_character(owner_campaign["id"])
+
+    second_client = TestClient(app)
+    second = second_client.post("/api/v1/auth/register", json={
+        "email": "isolamento@example.com",
+        "display_name": "Conta Isolada",
+        "password": "Senha-forte-isolamento-2026",
+    })
+    assert second.status_code == 201
+    second_client.headers.update({
+        "Authorization": f"Bearer {second.json()['access_token']}"
+    })
+
+    campaign_id = owner_campaign["id"]
+    assert second_client.get(f"/api/v1/campaigns/{campaign_id}/map").status_code == 404
+    assert second_client.post(
+        f"/api/v1/campaigns/{campaign_id}/move",
+        json={"target_q": 1, "target_r": 0},
+    ).status_code == 404
+    assert second_client.post(
+        f"/api/v1/campaigns/{campaign_id}/inventory/use",
+        json={"item_id": "agua_potavel"},
+    ).status_code == 404
+    assert second_client.post(f"/api/v1/campaigns/{campaign_id}/rest").status_code == 404
+
+    # O estado original continua intacto após todas as tentativas indevidas.
+    original = client.get(f"/api/v1/campaigns/{campaign_id}").json()
+    assert original["character"]["position_q"] == 0
+    assert original["character"]["position_r"] == 0
+    assert original["character"]["inventory"] == [
+        "kit_atendimento_basico", "agua_potavel", "racao"
+    ]
+    assert original["world_time_minutes"] == 0
+
+
+def test_all_campaign_mutations_require_authentication():
+    """Rotas de mutação não aceitam chamadas anônimas."""
+    campaign = create_campaign("Campanha protegida")
+    anonymous = TestClient(app)
+    campaign_id = campaign["id"]
+
+    assert anonymous.post(
+        f"/api/v1/campaigns/{campaign_id}/character",
+        json={"name": "Intruso", "origin": "mecanico"},
+    ).status_code == 401
+    assert anonymous.post(
+        f"/api/v1/campaigns/{campaign_id}/move",
+        json={"target_q": 1, "target_r": 0},
+    ).status_code == 401
+    assert anonymous.post(
+        f"/api/v1/campaigns/{campaign_id}/inventory/use",
+        json={"item_id": "agua_potavel"},
+    ).status_code == 401
+    assert anonymous.post(f"/api/v1/campaigns/{campaign_id}/rest").status_code == 401
