@@ -22,11 +22,13 @@ ALLOWED_CATEGORIES = {
 
 
 def parse_feature(feature: dict) -> dict | None:
-    """Valida e normaliza uma Feature GeoJSON Point; ignora dados sem nome."""
+    """Valida e normaliza uma GeoJSON Feature Point; ignora dados sem nome."""
     if not isinstance(feature, dict) or feature.get("type") != "Feature":
         raise ValueError("Cada item precisa ser uma GeoJSON Feature.")
     properties = feature.get("properties") or {}
     geometry = feature.get("geometry") or {}
+    if not isinstance(properties, dict) or not isinstance(geometry, dict):
+        raise ValueError("properties e geometry precisam ser objetos GeoJSON.")
     if geometry.get("type") != "Point":
         raise ValueError("POI precisa usar geometria Point.")
 
