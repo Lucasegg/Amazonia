@@ -14,11 +14,11 @@ Configure no projeto Vercel `api`:
 | --- | --- | --- |
 | `DATABASE_URL` | URL pooled do banco Neon `amazonia` no ambiente de homologação | URL pooled do banco Neon de produção |
 | `AMAZONIA_AUTH_SECRET` | Segredo aleatório exclusivo, mínimo 32 caracteres | Outro segredo aleatório exclusivo |
-| `AMAZONIA_CORS_ORIGINS` | URL exata do preview Web, sem barra final | Domínio definitivo do Web |
+| `AMAZONIA_CORS_ORIGINS` | URL exata do preview Web, sem barra final | Domínio definitivo do Web |\n| `AMAZONIA_COOKIE_SECURE` | `true` | `true` |\n| `AMAZONIA_COOKIE_SAMESITE` | `none` para Web/API em hosts Vercel distintos | `none` se Web/API permanecerem em sites distintos; `lax` se estiverem sob o mesmo site |
 
 Gere um segredo localmente com `openssl rand -hex 32`. Não reutilize o segredo da CI, não o coloque no Git e não o envie em mensagens. Use o tipo Sensitive/Encrypted no painel da Vercel.
 
-O backend usa PostgreSQL com o driver psycopg. Prefira a URL pooled fornecida pelo Neon para tráfego da aplicação.
+O backend usa PostgreSQL com o driver psycopg. Prefira a URL pooled fornecida pelo Neon para tráfego da aplicação.\n\nA autenticação usa cookie de sessão `HttpOnly` e cookie CSRF separado. Como os hosts `web-*.vercel.app` e `api-*.vercel.app` podem ser tratados como sites distintos pelo navegador, a configuração de preview exige `Secure=true` e `SameSite=none`. Isso requer HTTPS. A lista CORS deve conter a origem Web exata; nunca use `*` com credenciais. A disponibilidade de cookies de terceiros varia por navegador, portanto o teste real do fluxo no preview continua obrigatório.
 
 ## Variáveis da Web
 
@@ -44,14 +44,14 @@ A migração 0004 mantém `campaigns.user_id` anulável para preservar campanhas
 ## Teste mínimo após cada deployment
 
 - `GET /health` retorna HTTP 200.
-- Cadastro cria uma conta e devolve token.
+- Cadastro cria uma conta e define cookies de sessão; a resposta JSON não contém bearer token.
 - Login com senha incorreta retorna HTTP 401.
-- `GET /api/v1/auth/me` exige Bearer token.
-- Sem token, operações de campanha retornam HTTP 401.
+- `GET /api/v1/auth/me` exige cookie de sessão `HttpOnly`.
+- Sem cookie de sessão, operações de campanha retornam HTTP 401; mutações com Origin exigem CSRF válido.
 - Uma conta não consegue ler ou alterar campanha de outra conta.
 - O navegador consegue chamar a API sem erro de CORS.
 - Criar campanha, criar personagem, mover, consumir item, descansar e retomar após novo login.
 
 ## Situação desta etapa
 
-A Vercel reportou os dois previews como `Ready` na PR #19. O Neon possui o projeto e banco `amazonia`, mas a branch principal ainda estava vazia na última inspeção. O schema foi montado e verificado em uma branch temporária; aplicar a migração na branch principal requer aprovação explícita.
+A Vercel reportou os previews da PR #19 como `Ready`; isso confirma o build, não a configuração de variáveis nem o fluxo de autenticação em navegador. O Neon possui o projeto e banco `amazonia`; a migração equivalente à cadeia Alembic até `0004_user_accounts` foi aplicada e verificada na branch principal em 2026-11-14. Nenhuma conta ou dado pessoal foi inserido. Antes de liberar o preview, confirme as variáveis descritas acima e execute o teste integrado com duas contas.
