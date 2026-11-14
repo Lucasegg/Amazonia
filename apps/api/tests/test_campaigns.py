@@ -39,7 +39,6 @@ registration = client.post("/api/v1/auth/register", json={
     "password": "Senha-forte-de-teste-2026",
 })
 assert registration.status_code == 201
-client.headers.update({"Authorization": f"Bearer {registration.json()['access_token']}"})
 
 
 def teardown_module():
@@ -279,7 +278,6 @@ def test_authentication_required_and_campaigns_are_isolated_by_owner():
         "password": "Outra-senha-forte-2026",
     })
     assert second.status_code == 201
-    anonymous.headers.update({"Authorization": f"Bearer {second.json()['access_token']}"})
 
     assert anonymous.get("/api/v1/campaigns").status_code == 200
     assert anonymous.get("/api/v1/campaigns").json() == []
@@ -314,7 +312,6 @@ def test_second_account_cannot_access_character_map_inventory_or_movement():
     })
     assert second.status_code == 201
     second_client.headers.update({
-        "Authorization": f"Bearer {second.json()['access_token']}"
     })
 
     campaign_id = owner_campaign["id"]
@@ -358,3 +355,56 @@ def test_all_campaign_mutations_require_authentication():
         json={"item_id": "agua_potavel"},
     ).status_code == 401
     assert anonymous.post(f"/api/v1/campaigns/{campaign_id}/rest").status_code == 401
+
+
+
+def test_auth_uses_http_only_session_cookie_and_logout_revokes_browser_session():
+    """A sessão não é devolvida no JSON e o logout limpa o cookie HttpOnly."""
+    account_client = TestClient(app)
+    response = account_client.post("/api/v1/auth/register", json={
+        "email": "cookie-session@example.com",
+        "display_name": "Cookie Session",
+        "password": "Senha-cookie-segura-2026",
+    })
+    assert response.status_code == 201
+    assert "access_token" not in response.json()
+    assert response.cookies.get("amazonia_session")
+    assert response.cookies.get("amazonia_csrf")
+    assert "HttpOnly" in response.headers.get("set-cookie", "")
+    assert account_client.get("/api/v1/auth/me").status_code == 200
+
+    logout = account_client.post("/api/v1/auth/logout")
+    assert logout.status_code == 204
+    assert account_client.get("/api/v1/auth/me").status_code == 401
+
+
+def test_browser_mutations_require_allowed_origin_and_csrf_token():
+    """Rejeita origem externa e requisição de navegador sem token CSRF."""
+    account_client = TestClient(app)
+    registered = account_client.post("/api/v1/auth/register", json={
+        "email": "csrf-session@example.com",
+        "display_name": "CSRF Session",
+        "password": "Senha-csrf-segura-2026",
+    })
+    assert registered.status_code == 201
+    campaign = account_client.post(
+        "/api/v1/campaigns",
+        json={"name": "Campanha CSRF"},
+        headers={"Origin": "https://evil.example"},
+    )
+    assert campaign.status_code == 403
+
+    csrf_missing = account_client.post(
+        "/api/v1/campaigns",
+        json={"name": "Campanha sem CSRF"},
+        headers={"Origin": "http://localhost:5173"},
+    )
+    assert csrf_missing.status_code == 403
+
+    csrf = account_client.cookies.get("amazonia_csrf")
+    allowed = account_client.post(
+        "/api/v1/campaigns",
+        json={"name": "Campanha com CSRF"},
+        headers={"Origin": "http://localhost:5173", "X-CSRF-Token": csrf},
+    )
+    assert allowed.status_code == 201
