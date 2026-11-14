@@ -323,3 +323,54 @@ Este blueprint estará pronto para orientar código quando:
 
 ---
 **Nota:** este documento é uma proposta técnica derivada das decisões de design já aprovadas. Ele não afirma que provedores, bibliotecas ou limites gratuitos foram verificados ou escolhidos.
+
+## 15. Recomendação tecnológica inicial (pesquisa em 14/11/2026)
+
+Esta seção registra uma recomendação para reduzir indecisão na Sprint 1. É uma proposta baseada na documentação pública consultada nesta data; não significa que contas, serviços ou ambientes tenham sido criados.
+
+| Camada | Recomendação | Motivo e ressalvas |
+|---|---|---|
+| Frontend | React + TypeScript com Vite | Interface 2D sem necessidade inicial de renderização no servidor; build estático simples e fácil de hospedar/migrar |
+| Mapa | MapLibre GL JS | Biblioteca open source para mapas interativos WebGL e fontes vetoriais; separar biblioteca de renderização do fornecedor de tiles |
+| API | Python + FastAPI | Alinha-se à arquitetura proposta e facilita validar contratos tipados e testar o motor de regras isoladamente |
+| Persistência | PostgreSQL + SQLAlchemy 2 + Alembic | Banco relacional maduro; migrações versionadas no repositório e domínio independente do provedor |
+| Validação | Pydantic + pytest | Contratos explícitos e testes de unidade/integrados |
+| Banco remoto de desenvolvimento | Neon Free, sujeito a limites | PostgreSQL gerenciado com 1 GB por projeto e 100 CU-horas/mês segundo a informação oficial publicada em 02/10/2026; monitorar consumo e manter exportação/migrações portáveis |
+| Execução inicial da API | Local, em ambiente de desenvolvimento | Evita escolher prematuramente hospedagem de backend sempre ativo; Docker Compose pode padronizar ambiente local |
+| Frontend de preview | Vercel Hobby somente se o uso permanecer pessoal e não comercial | O plano gratuito declara uso pessoal/não comercial; não assumir que serve para lançamento público comercial |
+| Tiles geográficos | Não escolher ainda | MapLibre é renderer, não provedor de dados/tiles. Para o primeiro ciclo, usar mapa esquemático/GeoJSON controlado; avaliar provedor ou tiles próprios antes de tráfego público |
+| IA narradora | Adaptador desacoplado; sem provedor obrigatório na Sprint 1 | Não introduzir custo nem dependência de IA antes do motor determinístico estar testado |
+
+### Por que Neon em vez de Supabase neste protótipo
+
+O núcleo inicial precisa de PostgreSQL, transações e migrações. Autenticação gerenciada, storage de arquivos e realtime não são requisitos da Sprint 1. Neon Free informa 1 GB por projeto e 100 CU-horas mensais; isso é suficiente para começar um protótipo pequeno, desde que o consumo seja acompanhado. O Supabase Free continua sendo alternativa válida, mas oferece recursos adicionais que não precisamos agora e pode pausar projetos com pouca atividade por uma semana. A decisão é uma preferência por simplicidade, não uma afirmação de que Supabase seja tecnicamente inadequado.
+
+### Limites importantes antes de publicar
+
+- Vercel Hobby é gratuito, mas a documentação o restringe a uso pessoal e não comercial. Se o Amazonia virar produto comercial ou público com finalidade comercial, revisar hospedagem e termos antes de publicar.
+- Não hospedar tiles em `tile.openstreetmap.org` como se fosse CDN gratuita ilimitada. A política oficial exige atribuição visível, cache, identificação adequada e proíbe pré-carregamento em massa; a disponibilidade é best-effort e pode ser bloqueada em caso de abuso.
+- MapLibre GL JS renderiza mapas usando fontes/tiles configuradas; a licença da biblioteca não concede direito de uso ilimitado de qualquer serviço de tiles.
+- Neon Free tem limites de computação e armazenamento; não tratar o plano como SLA de produção nem como backup automático suficiente.
+- A API permanece local durante a Sprint 1. A escolha de hospedagem persistente será uma decisão separada, com comparação de limites, logs, segredos, latência e política comercial.
+
+### Decisões recomendadas para a Sprint 1
+
+1. Criar monorepo com `apps/web` e `apps/api`, mantendo a regra de domínio dentro da API e sem dependência de framework de interface.
+2. Criar a interface React/TypeScript mínima e a API FastAPI mínima, sem login externo nem IA.
+3. Implementar PostgreSQL, SQLAlchemy e Alembic; usar banco local no desenvolvimento e Neon como ambiente remoto de integração, se o usuário confirmar a conexão.
+4. Implementar primeiro atributos, ficha, testes D20, habilidades e progressão com testes automatizados.
+5. Adicionar workflow de CI para frontend, backend, testes e verificação de migrações antes de qualquer deploy.
+6. Manter mapa e tiles fora do caminho crítico da Sprint 1; a primeira interface pode usar um painel/placeholder até a Sprint 2.
+
+### Fontes oficiais consultadas
+
+- Neon, atualização do plano gratuito em 02/10/2026: https://neon.com/blog/neon-free-plan-1-gb-per-project
+- Supabase, preços e limites do plano Free: https://supabase.com/pricing
+- Supabase, política de pausa por inatividade: https://supabase.com/kb/faqs/platform/free-project-pausing
+- Vercel, plano Hobby e uso pessoal/não comercial: https://vercel.com/docs/plans/hobby
+- Vercel, limites de plataforma: https://vercel.com/docs/limits
+- FastAPI, conceitos de deploy e execução: https://fastapi.tiangolo.com/deployment/concepts/
+- MapLibre GL JS, documentação oficial: https://maplibre.org/maplibre-gl-js/docs/
+- OpenStreetMap Foundation, política de uso de tiles: https://operations.osmfoundation.org/policies/tiles/
+
+**Aprovação necessária:** confirmar ou ajustar esta pilha antes de fixar versões, criar ambientes remotos ou iniciar integrações.
