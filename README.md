@@ -6,7 +6,7 @@ RPG de sobrevivência e narrativa ambientado inicialmente na Grande São Paulo, 
 
 - Fase 0: visão, regras fundamentais e blueprint técnico documentados.
 - Sprint 1: motor determinístico, API, campanhas, personagens e interface web inicial.
-- Sprint 2: mapa interativo com grade hexagonal, descoberta de células e movimentação validada no servidor.
+- Sprint 2: mapa interativo com grade hexagonal, descoberta de células, movimentação validada no servidor e POIs municipais georreferenciados.
 - A experiência é individual e textual; a IA será narradora, nunca autoridade sobre regras ou estado persistido.
 
 ## Estrutura
@@ -41,11 +41,13 @@ Defina VITE_API_URL com a origem da API. Para permitir a interface no CORS, conf
 
 ## Mapa e movimentação
 
-O mapa de referência usa MapLibre GL JS e tiles raster do OpenStreetMap apenas durante o protótipo. A atribuição é exibida no mapa. Não há pré-carregamento em massa, nem garantia de disponibilidade ou uso ilimitado. Antes de publicar o jogo, será escolhido um provedor compatível com o volume esperado e seus termos.
+O mapa usa MapLibre GL JS e tiles raster do OpenStreetMap apenas durante o protótipo. A atribuição é exibida no mapa. Não há pré-carregamento em massa nem garantia de disponibilidade ou uso ilimitado. Antes de publicar o jogo, será escolhido um provedor compatível com o volume esperado e seus termos.
 
 A grade inicial usa hexágonos com raio de 500 metros. Cada movimento adjacente, validado no servidor, avança 10 minutos no relógio do mundo e registra a nova célula como descoberta. Células não descobertas não revelam terreno ou pontos de interesse.
 
 A célula (0, 0) fica ancorada provisoriamente no centro geográfico aproximado de São Paulo (-23.5505, -46.6333). É apenas uma origem de teste do protótipo, não a localização narrativa definitiva. A aplicação não solicita GPS.
+
+Os POIs iniciais são referências geográficas da Prefeitura de São Paulo. Eles só aparecem quando a célula correspondente é descoberta; não representam recursos ou serviços disponíveis no jogo. Consulte docs/SPRINT_2_POI.md para as fontes e coordenadas.
 
 ## Testes
 
