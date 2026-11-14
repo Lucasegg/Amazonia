@@ -1,4 +1,5 @@
 import os
+import re
 import pytest
 from collections.abc import Generator
 
@@ -9,8 +10,9 @@ from sqlalchemy.pool import StaticPool
 
 from app.database import Base, get_db
 from app.main import app
+import app.main as main_module
 from app import models  # noqa: F401
-from app.models import AuthAttempt, PointOfInterest
+from app.models import AuthAttempt, PointOfInterest, User
 
 
 test_engine = create_engine(
@@ -452,3 +454,72 @@ def test_csrf_bootstrap_endpoint_supports_cross_origin_frontend():
         "X-CSRF-Token": token,
     })
     assert blocked.status_code == 401  # CSRF válido, mas sem sessão autenticada.
+
+
+def test_email_verification_is_required_and_owner_is_provisioned_only_after_verification(monkeypatch):
+    """A conta só recebe sessão após confirmação; owner depende de e-mail confirmado."""
+    os.environ["AMAZONIA_REQUIRE_EMAIL_VERIFICATION"] = "true"
+    os.environ["AMAZONIA_OWNER_EMAIL"] = "owner-amazonia@example.com"
+    sent = []
+    monkeypatch.setattr(main_module, "send_account_email", lambda recipient, subject, body: sent.append(body))
+    browser = TestClient(app)
+    registration = browser.post("/api/v1/auth/register", json={
+        "email": "owner-amazonia@example.com",
+        "display_name": "Owner",
+        "password": "Senha-segura-owner-2026",
+    })
+    assert registration.status_code == 202
+    assert browser.get("/api/v1/auth/me").status_code == 401
+    denied_login = browser.post("/api/v1/auth/login", json={
+        "email": "owner-amazonia@example.com",
+        "password": "Senha-segura-owner-2026",
+    })
+    assert denied_login.status_code == 401
+    token = re.search(r"\?verify=([A-Za-z0-9_-]+)", sent[0]).group(1)
+    verified = browser.post("/api/v1/auth/verify-email", json={"token": token})
+    assert verified.status_code == 200
+    assert browser.get("/api/v1/auth/me").status_code == 200
+    with TestingSessionLocal() as session:
+        owner = session.query(User).filter(User.email == "owner-amazonia@example.com").one()
+        assert owner.role == "owner"
+        assert owner.email_verified_at is not None
+    assert browser.post("/api/v1/auth/verify-email", json={"token": token}).status_code == 400
+    os.environ["AMAZONIA_REQUIRE_EMAIL_VERIFICATION"] = "false"
+    os.environ.pop("AMAZONIA_OWNER_EMAIL", None)
+
+
+def test_password_reset_token_is_single_use_and_revokes_existing_sessions(monkeypatch):
+    """Recuperação troca a senha, consome o token e revoga cookies já emitidos."""
+    os.environ["AMAZONIA_REQUIRE_EMAIL_VERIFICATION"] = "false"
+    sent = []
+    monkeypatch.setattr(main_module, "send_account_email", lambda recipient, subject, body: sent.append(body))
+    browser = TestClient(app)
+    registration = browser.post("/api/v1/auth/register", json={
+        "email": "reset-amazonia@example.com",
+        "display_name": "Reset",
+        "password": "Senha-antiga-segura-2026",
+    })
+    assert registration.status_code == 202
+    with TestingSessionLocal() as session:
+        user = session.query(User).filter(User.email == "reset-amazonia@example.com").one()
+        user.email_verified_at = __import__("datetime").datetime.now(__import__("datetime").timezone.utc)
+        session.commit()
+    requested = browser.post("/api/v1/auth/forgot-password", json={"email": "reset-amazonia@example.com"})
+    assert requested.status_code == 202
+    token = re.search(r"\?reset=([A-Za-z0-9_-]+)", sent[0]).group(1)
+    reset = TestClient(app).post("/api/v1/auth/reset-password", json={
+        "token": token,
+        "password": "Senha-nova-segura-2026",
+    })
+    assert reset.status_code == 200
+    assert browser.get("/api/v1/auth/me").status_code == 401
+    new_login = TestClient(app).post("/api/v1/auth/login", json={
+        "email": "reset-amazonia@example.com",
+        "password": "Senha-nova-segura-2026",
+    })
+    assert new_login.status_code == 200
+    reused = TestClient(app).post("/api/v1/auth/reset-password", json={
+        "token": token,
+        "password": "Outra-senha-segura-2026",
+    })
+    assert reused.status_code == 400
