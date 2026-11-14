@@ -264,6 +264,7 @@ def use_inventory_item(
     campaign_id: str,
     payload: UseItemRequest,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> dict[str, object]:
     """Consome uma unidade do inventário e persiste seus efeitos atomicamente."""
     campaign = _owned_campaign(db, campaign_id, current_user.id)
