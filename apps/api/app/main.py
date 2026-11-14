@@ -24,7 +24,7 @@ from app.domain.world import (
 )
 from app.models import Campaign, Character, PointOfInterest, User
 from app.schemas import AuthResponse, CampaignCreate, CampaignRead, CharacterCreate, CharacterRead, LoginRequest, MoveRequest, RegisterRequest, UseItemRequest, UserRead
-from app.auth import clear_auth_attempts, clear_session_cookies, get_current_user, hash_password, is_rate_limited, record_auth_attempt, set_session_cookies, verify_password
+from app.auth import clear_auth_attempts, clear_session_cookies, get_current_user, hash_password, is_rate_limited, record_auth_attempt, set_csrf_cookie, set_session_cookies, verify_password
 from datetime import timedelta
 
 app = FastAPI(
@@ -140,12 +140,20 @@ def get_origin(origin_id: str) -> dict[str, object]:
     }
 
 
+@app.get("/api/v1/auth/csrf", tags=["autenticacao"])
+def csrf_token(request: Request, response: Response) -> dict[str, str]:
+    """Entrega token CSRF ao frontend mesmo quando API e Web usam hosts distintos."""
+    token = request.cookies.get("amazonia_csrf")
+    return {"csrf_token": set_csrf_cookie(response, token)}
+
+
 @app.post("/api/v1/auth/register", response_model=AuthResponse, status_code=201, tags=["autenticacao"])
 def register(payload: RegisterRequest, response: Response, request: Request, db: Session = Depends(get_db)) -> dict[str, object]:
     """Cria conta com senha Argon2id e limita cadastros por IP."""
     client_ip = request.client.host if request.client else "unknown"
     if is_rate_limited(db, "register_ip", client_ip, 5, timedelta(hours=1)):
         raise HTTPException(status_code=429, detail="Muitas tentativas de cadastro. Tente novamente mais tarde.")
+    record_auth_attempt(db, "register_ip", client_ip)
     if db.query(User).filter(User.email == payload.email).first() is not None:
         raise HTTPException(status_code=409, detail="Este e-mail já possui uma conta.")
     user = User(email=payload.email, display_name=payload.display_name.strip(), password_hash=hash_password(payload.password))
@@ -156,9 +164,8 @@ def register(payload: RegisterRequest, response: Response, request: Request, db:
         db.rollback()
         raise HTTPException(status_code=409, detail="Este e-mail já possui uma conta.") from exc
     db.refresh(user)
-    record_auth_attempt(db, "register_ip", client_ip)
-    set_session_cookies(response, user.id, user.session_version)
-    return {"user": user}
+    csrf_token = set_session_cookies(response, user.id, user.session_version)
+    return {"user": user, "csrf_token": csrf_token}
 
 
 @app.post("/api/v1/auth/login", response_model=AuthResponse, tags=["autenticacao"])
@@ -174,8 +181,8 @@ def login(payload: LoginRequest, response: Response, request: Request, db: Sessi
         raise HTTPException(status_code=401, detail="E-mail ou senha inválidos.")
     clear_auth_attempts(db, "login_email", payload.email)
     clear_auth_attempts(db, "login_ip", client_ip)
-    set_session_cookies(response, user.id, user.session_version)
-    return {"user": user}
+    csrf_token = set_session_cookies(response, user.id, user.session_version)
+    return {"user": user, "csrf_token": csrf_token}
 
 
 @app.post("/api/v1/auth/logout", status_code=204, tags=["autenticacao"])
