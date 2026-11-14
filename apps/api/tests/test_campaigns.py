@@ -588,3 +588,11 @@ def test_registration_reports_email_delivery_failure_and_keeps_resendable_accoun
             AccountToken.used_at.is_(None),
         ).one()
         assert token.expires_at is not None
+
+
+def test_account_action_links_keep_tokens_in_url_fragment(monkeypatch):
+    """Tokens de e-mail não devem ir na requisição HTTP inicial da página."""
+    monkeypatch.setenv("AMAZONIA_WEB_URL", "https://amazonia.example")
+    link = main_module._account_action_url("verify", "one-time-secret")
+    assert link == "https://amazonia.example/#verify=one-time-secret"
+    assert "one-time-secret" not in link.split("?", 1)[-1] if "?" in link else True
