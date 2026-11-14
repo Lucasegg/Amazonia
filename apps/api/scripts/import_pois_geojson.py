@@ -16,17 +16,8 @@ from app.domain.world import MAX_CELL_COORDINATE, latlon_to_cell
 from app.models import PointOfInterest
 
 ALLOWED_CATEGORIES = {
-    "healthcare",
-    "police",
-    "fire_station",
-    "pharmacy",
-    "food",
-    "fuel",
-    "shelter",
-    "school",
-    "transport",
-    "market",
-    "other",
+    "healthcare", "police", "fire_station", "pharmacy", "food", "fuel",
+    "shelter", "school", "transport", "market", "other",
 }
 
 
@@ -60,6 +51,8 @@ def parse_feature(feature: dict) -> dict | None:
         source_ref = f"osm:{osm_type}:{osm_id}"
     if not source_ref:
         raise ValueError("POI precisa de source_ref estável para evitar duplicação.")
+    if len(source_ref) > 120:
+        raise ValueError("source_ref excede o limite de 120 caracteres.")
 
     if abs(q) > MAX_CELL_COORDINATE or abs(r) > MAX_CELL_COORDINATE:
         return None
@@ -69,6 +62,8 @@ def parse_feature(feature: dict) -> dict | None:
         source = "OpenStreetMap"
     if not source:
         raise ValueError("POI precisa identificar a fonte dos dados.")
+    if len(source) > 40:
+        raise ValueError("source excede o limite de 40 caracteres.")
 
     source_license = str(properties.get("source_license") or "").strip()
     if not source_license and source == "OpenStreetMap":
@@ -77,6 +72,8 @@ def parse_feature(feature: dict) -> dict | None:
         raise ValueError(
             f"POI da fonte {source!r} precisa declarar source_license explicitamente."
         )
+    if len(source_license) > 40:
+        raise ValueError("source_license excede o limite de 40 caracteres.")
 
     source_url = str(properties.get("source_url") or "").strip()
     if not source_url and source == "OpenStreetMap":
@@ -88,13 +85,15 @@ def parse_feature(feature: dict) -> dict | None:
     parsed_url = urlparse(source_url)
     if not parsed_url.scheme or not parsed_url.netloc or parsed_url.scheme not in {"http", "https"}:
         raise ValueError("POI precisa de source_url HTTP ou HTTPS válido.")
+    if len(source_url) > 255:
+        raise ValueError("source_url excede o limite de 255 caracteres.")
 
     raw_tags = properties.get("tags") or {}
     tags = {str(key): str(value) for key, value in raw_tags.items()} if isinstance(raw_tags, dict) else {}
 
     return {
         "id": str(uuid5(NAMESPACE_URL, source_ref)),
-        "source_ref": source_ref[:120],
+        "source_ref": source_ref,
         "name": name[:120],
         "category": category,
         "latitude": latitude,
@@ -102,9 +101,9 @@ def parse_feature(feature: dict) -> dict | None:
         "cell_q": q,
         "cell_r": r,
         "tags": tags,
-        "source": source[:40],
-        "source_license": source_license[:40],
-        "source_url": source_url[:255],
+        "source": source,
+        "source_license": source_license,
+        "source_url": source_url,
     }
 
 
