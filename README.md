@@ -5,51 +5,43 @@ RPG de sobrevivência e narrativa ambientado inicialmente na Grande São Paulo, 
 ## Estado do projeto
 
 - Fase 0: visão, regras fundamentais e blueprint técnico documentados.
-- Sprint 1: motor determinístico, API e persistência inicial de campanhas/personagens.
-- Experiência inicial: campanha individual, mapa 2D e narrativa textual.
+- Sprint 1: motor determinístico, API, campanhas e personagens persistidos.
+- Interface web inicial para criar campanha e ficha.
 - A IA será narradora; não controla dados, atributos, inventário ou estado persistido.
 
 ## Estrutura
 
-- `docs/`: design, regras e arquitetura.
-- `apps/api/`: API FastAPI, domínio, modelos SQLAlchemy e migrações Alembic.
-- `.github/workflows/ci.yml`: testes e validação da migração.
+- docs/: design, regras e arquitetura.
+- apps/api/: FastAPI, domínio, modelos SQLAlchemy e migrações Alembic.
+- apps/web/: React + TypeScript + Vite.
+- .github/workflows/ci.yml: testes e builds.
 
-## Executar a API localmente
+## Ambientes
 
-Requer Python 3.11 ou superior.
+O desenvolvimento remoto deve usar o banco Neon de homologação descrito em docs/ambientes.md. DATABASE_URL é obrigatória e deve ser fornecida como variável de ambiente/segredo; nunca inclua credenciais no repositório. A CI usa SQLite isolado apenas para validar migrações e testes, sem acessar homologação ou produção.
 
-```bash
-cd apps/api
-python -m venv .venv
-# Windows PowerShell:
-.venv\\Scripts\\Activate.ps1
-# Linux/macOS:
-# source .venv/bin/activate
-pip install -e ".[dev]"
-alembic upgrade head
-uvicorn app.main:app --reload
-```
+A migração deve ser revisada e validada primeiro em homologação. Não executar migrações automaticamente na inicialização da API.
 
-A configuração padrão usa SQLite local para facilitar o início. Para PostgreSQL, defina `DATABASE_URL` antes de executar a migração. Nenhum banco remoto é provisionado por esta PR.
+## Executar a API
 
-A documentação interativa fica em `http://127.0.0.1:8000/docs`.
+Requer Python 3.11 ou superior. Configure DATABASE_URL com a conexão do ambiente apropriado antes de iniciar:
 
-## Executar os testes
+    cd apps/api
+    pip install -e ".[dev]"
+    alembic upgrade head
+    uvicorn app.main:app --reload
 
-```bash
-cd apps/api
-pytest
-```
+## Executar a interface
 
-## Rotas iniciais
+    cd apps/web
+    npm install
+    npm run dev
 
-- `GET /health`
-- `GET /api/v1/game/origins`
-- `GET /api/v1/game/origins/{origin_id}`
-- `POST /api/v1/game/checks`
-- `POST /api/v1/campaigns`
-- `GET /api/v1/campaigns/{campaign_id}`
-- `POST /api/v1/campaigns/{campaign_id}/character`
+Defina VITE_API_URL com a origem da API. Em desenvolvimento local, o padrão é http://localhost:8000; em ambiente remoto, use a URL HTTPS do serviço de API.
 
-Cada campanha aceita um personagem no primeiro fluxo do protótipo. As regras e os valores iniciais permanecem versionados nos documentos de design. A Sprint 1 não conecta provedor de IA nem serviço remoto pago.
+## Testes
+
+    cd apps/api
+    pytest
+
+A CI executa testes e validação de migrações da API, além de typecheck e build do frontend.
