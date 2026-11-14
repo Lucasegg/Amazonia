@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import maplibregl from "maplibre-gl";
+import { Map as MapLibreMap, NavigationControl } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 const INITIAL_VIEW: [number, number] = [-46.6333, -23.5505];
@@ -10,7 +10,7 @@ function MapView() {
   useEffect(() => {
     if (!containerRef.current) return;
 
-    const map = new maplibregl.Map({
+    const map = new MapLibreMap({
       container: containerRef.current,
       style: {
         version: 8,
@@ -31,7 +31,7 @@ function MapView() {
       maxPitch: 0,
     });
 
-    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+    map.addControl(new NavigationControl({ showCompass: false }), "top-right");
 
     return () => map.remove();
   }, []);
