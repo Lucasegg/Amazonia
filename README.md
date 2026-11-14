@@ -70,13 +70,13 @@ A CI executa testes e validação de migrações da API, auditoria de dependênc
 
 ## Contas e campanhas privadas
 
-A API exige autenticação Bearer para criar, listar, consultar e alterar campanhas. O cadastro aceita e-mail, nome de exibição e senha com no mínimo 12 caracteres; as senhas são armazenadas com Argon2id e os tokens HS256 expiram em 12 horas. Configure `AMAZONIA_AUTH_SECRET` com pelo menos 32 caracteres aleatórios no ambiente da API. Nunca use o valor de teste da CI em homologação ou produção.
+A API exige uma sessão web em cookie `HttpOnly` para criar, listar, consultar e alterar campanhas. O cadastro aceita e-mail, nome de exibição e senha com no mínimo 12 caracteres; as senhas são armazenadas com Argon2id. A sessão assinada HS256 expira em 12 horas. Configure `AMAZONIA_AUTH_SECRET` com pelo menos 32 caracteres aleatórios no ambiente da API. Nunca use o valor de teste da CI em homologação ou produção.
 
 Endpoints de autenticação:
 - `POST /api/v1/auth/register`
 - `POST /api/v1/auth/login`
-- `GET /api/v1/auth/me`
+- `POST /api/v1/auth/logout`\n- `GET /api/v1/auth/me`
 
-A rota `GET /api/v1/campaigns` lista apenas campanhas da conta autenticada. Os endpoints de campanha retornam 404 para IDs que não pertencem ao usuário, sem confirmar a existência de campanhas de terceiros.
+O navegador recebe cookie de sessão `HttpOnly` e cookie CSRF; mutações com `Origin` exigem origem permitida e cabeçalho `X-CSRF-Token`. Não há bearer token no JSON nem armazenamento de token em `localStorage`. A rota `GET /api/v1/campaigns` lista apenas campanhas da conta autenticada. Os endpoints de campanha retornam 404 para IDs que não pertencem ao usuário, sem confirmar a existência de campanhas de terceiros.
 
 A migração 0004 adiciona contas e vínculo opcional de propriedade. Campanhas antigas sem proprietário permanecem inacessíveis pela API autenticada até uma decisão explícita de recuperação; não são atribuídas automaticamente.
