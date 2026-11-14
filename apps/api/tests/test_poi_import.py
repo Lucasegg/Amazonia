@@ -10,7 +10,7 @@ def test_cell_conversion_round_trips_for_prototype_cells():
         assert latlon_to_cell(latitude, longitude) == (q, r)
 
 
-def test_parse_feature_assigns_source_and_hex_cell():
+def test_parse_feature_assigns_osm_source_and_hex_cell():
     feature = {
         "type": "Feature",
         "geometry": {"type": "Point", "coordinates": [-46.6333, -23.5505]},
@@ -26,8 +26,63 @@ def test_parse_feature_assigns_source_and_hex_cell():
     assert result["source_ref"] == "osm:node:123456"
     assert result["cell_q"] == 0
     assert result["cell_r"] == 0
+    assert result["source"] == "OpenStreetMap"
     assert result["source_license"] == "ODbL-1.0"
+    assert result["source_url"] == "https://www.openstreetmap.org/node/123456"
     assert result["tags"]["amenity"] == "clinic"
+
+
+def test_parse_feature_preserves_geosampa_cc_by_sa_license():
+    feature = {
+        "type": "Feature",
+        "geometry": {"type": "Point", "coordinates": [-46.6333, -23.5505]},
+        "properties": {
+            "name": "Unidade de Saúde Municipal",
+            "category": "healthcare",
+            "source_ref": "geosampa:ubs:123",
+            "source": "GeoSampa",
+            "source_license": "CC-BY-SA-4.0",
+            "source_url": "https://metadados.geosampa.prefeitura.sp.gov.br/geonetwork/srv/api/records/bc44ee6c-e973-4670-b912-9ac8d64b9f56",
+        },
+    }
+    result = parse_feature(feature)
+    assert result is not None
+    assert result["source"] == "GeoSampa"
+    assert result["source_license"] == "CC-BY-SA-4.0"
+    assert result["source_url"].startswith("https://metadados.geosampa")
+
+
+def test_parse_feature_rejects_non_osm_source_without_license():
+    feature = {
+        "type": "Feature",
+        "geometry": {"type": "Point", "coordinates": [-46.6333, -23.5505]},
+        "properties": {
+            "name": "Unidade de Saúde Municipal",
+            "category": "healthcare",
+            "source_ref": "geosampa:ubs:123",
+            "source": "GeoSampa",
+            "source_url": "https://metadados.geosampa.prefeitura.sp.gov.br/",
+        },
+    }
+    with pytest.raises(ValueError, match="source_license"):
+        parse_feature(feature)
+
+
+def test_parse_feature_rejects_non_http_source_url():
+    feature = {
+        "type": "Feature",
+        "geometry": {"type": "Point", "coordinates": [-46.6333, -23.5505]},
+        "properties": {
+            "name": "Unidade de Saúde Municipal",
+            "category": "healthcare",
+            "source_ref": "geosampa:ubs:124",
+            "source": "GeoSampa",
+            "source_license": "CC-BY-SA-4.0",
+            "source_url": "file:///tmp/ubs.geojson",
+        },
+    }
+    with pytest.raises(ValueError, match="source_url"):
+        parse_feature(feature)
 
 
 def test_parse_feature_skips_unnamed_places():
