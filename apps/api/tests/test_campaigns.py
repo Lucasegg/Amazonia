@@ -372,6 +372,8 @@ def test_auth_uses_http_only_session_cookie_and_logout_revokes_browser_session()
     assert response.cookies.get("amazonia_csrf")
     assert "HttpOnly" in response.headers.get("set-cookie", "")
     assert account_client.get("/api/v1/auth/me").status_code == 200
+    browser_me = account_client.get("/api/v1/auth/me", headers={"Origin": "http://localhost:5173"})
+    assert browser_me.status_code == 200  # GET não exige cabeçalho CSRF.
 
     # Mesmo que um cookie tenha sido copiado antes do logout, a versão da sessão o invalida.
     stolen_session = TestClient(app)
@@ -425,3 +427,16 @@ def test_login_is_rate_limited_after_five_failed_attempts():
         assert response.status_code == 401
     blocked = limited_client.post("/api/v1/auth/login", json=payload)
     assert blocked.status_code == 429
+
+
+
+def test_csrf_bootstrap_endpoint_supports_cross_origin_frontend():
+    """O Web obtém o token CSRF pelo endpoint da API sem ler cookie de outro host."""
+    browser = TestClient(app)
+    response = browser.get("/api/v1/auth/csrf", headers={"Origin": "http://localhost:5173"})
+    assert response.status_code == 200
+    token = response.json()["csrf_token"]
+    assert token
+    assert browser.cookies.get("amazonia_csrf") == token
+    blocked = browser.post("/api/v1/campaigns", json={"name": "Sem token"}, headers={"Origin": "http://localhost:5173"})
+    assert blocked.status_code == 401  # Sem sessão, mesmo com origem permitida.
