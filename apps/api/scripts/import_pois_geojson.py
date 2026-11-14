@@ -64,6 +64,8 @@ def parse_feature(feature: dict) -> dict | None:
         raise ValueError("POI precisa identificar a fonte dos dados.")
     if len(source) > 40:
         raise ValueError("source excede o limite de 40 caracteres.")
+    if source == "OpenStreetMap" and not source_ref.startswith("osm:"):
+        raise ValueError("Registros OpenStreetMap precisam de source_ref osm:type:id.")
 
     source_license = str(properties.get("source_license") or "").strip()
     if not source_license and source == "OpenStreetMap":
@@ -72,6 +74,8 @@ def parse_feature(feature: dict) -> dict | None:
         raise ValueError(
             f"POI da fonte {source!r} precisa declarar source_license explicitamente."
         )
+    if source == "OpenStreetMap" and source_license != "ODbL-1.0":
+        raise ValueError("Dados OpenStreetMap precisam preservar a licença ODbL-1.0.")
     if len(source_license) > 40:
         raise ValueError("source_license excede o limite de 40 caracteres.")
 
