@@ -69,3 +69,16 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 2px #b
 .story-rule { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); color: #879883; font-size: 8px; line-height: 1.7; }
 footer { display: flex; justify-content: space-between; gap: 18px; padding: 22px 0 30px; border-top: 1px solid var(--line); color: #738072; font-size: 8px; }
 @media (max-width: 760px) { .app-shell { width: min(100% - 28px, 560px); } .hero { padding: 54px 0 30px; } .setup-card { padding: 24px; } .game-grid { grid-template-columns: 1fr; } .status-card { grid-row: auto; } footer { flex-direction: column; } }
+
+.map-meta { display: flex; justify-content: space-between; gap: 12px; margin-top: 13px; color: var(--green); font: 9px ui-monospace, monospace; letter-spacing: .08em; }
+.move-controls { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-top: 12px; }
+.move-controls button { padding: 10px 4px; border: 1px solid #526b4b; background: #1a291e; color: #dce9d2; font: 10px ui-monospace, monospace; cursor: pointer; }
+.move-controls button:hover:not(:disabled) { background: #344b34; border-color: var(--green); }
+.move-controls button:disabled { opacity: .4; cursor: wait; }
+.map-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 12px; color: var(--muted); font: 8px ui-monospace, monospace; }
+.map-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.map-legend i { width: 8px; height: 8px; display: inline-block; border: 1px solid #c8dda9; }
+.legend-current { background: #b8d78b; }
+.legend-known { background: #6e8e5d; }
+.legend-unknown { background: #24352a; }
+@media (max-width: 420px) { .move-controls { grid-template-columns: repeat(3, 1fr); } .map-meta { flex-direction: column; } }
