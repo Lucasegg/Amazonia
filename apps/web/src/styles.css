@@ -81,4 +81,10 @@ footer { display: flex; justify-content: space-between; gap: 18px; padding: 22px
 .legend-current { background: #b8d78b; }
 .legend-known { background: #6e8e5d; }
 .legend-unknown { background: #24352a; }
-@media (max-width: 420px) { .move-controls { grid-template-columns: repeat(3, 1fr); } .map-meta { flex-direction: column; } }
+.poi-panel { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); display: grid; gap: 9px; }
+.poi-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+.poi-row div { display: grid; gap: 4px; }
+.poi-row strong { color: #e5eddf; font-size: 11px; font-weight: 600; }
+.poi-row span { color: var(--muted); font-size: 9px; text-transform: capitalize; }
+.poi-row small { color: var(--green); font: 8px ui-monospace, monospace; white-space: nowrap; }
+@media (max-width: 420px) { .move-controls { grid-template-columns: repeat(3, 1fr); } .map-meta { flex-direction: column; } .poi-row { align-items: flex-start; } }
