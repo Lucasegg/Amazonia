@@ -33,13 +33,14 @@ def override_get_db() -> Generator:
 Base.metadata.create_all(bind=test_engine)
 app.dependency_overrides[get_db] = override_get_db
 os.environ["AMAZONIA_AUTH_SECRET"] = "ci-test-secret-not-for-production-000000000000000000000000"
+os.environ["AMAZONIA_REQUIRE_EMAIL_VERIFICATION"] = "false"
 client = TestClient(app)
 registration = client.post("/api/v1/auth/register", json={
     "email": "jogador@example.com",
     "display_name": "Jogador de Teste",
     "password": "Senha-forte-de-teste-2026",
 })
-assert registration.status_code == 201
+assert registration.status_code == 202
 
 
 @pytest.fixture(autouse=True)
@@ -285,7 +286,7 @@ def test_authentication_required_and_campaigns_are_isolated_by_owner():
         "display_name": "Outra Conta",
         "password": "Outra-senha-forte-2026",
     })
-    assert second.status_code == 201
+    assert second.status_code == 202
 
     assert anonymous.get("/api/v1/campaigns").status_code == 200
     assert anonymous.get("/api/v1/campaigns").json() == []
@@ -374,7 +375,7 @@ def test_auth_uses_http_only_session_cookie_and_logout_revokes_browser_session()
         "display_name": "Cookie Session",
         "password": "Senha-cookie-segura-2026",
     })
-    assert response.status_code == 201
+    assert response.status_code == 202
     assert "access_token" not in response.json()
     assert response.cookies.get("amazonia_session")
     assert response.cookies.get("amazonia_csrf")
@@ -401,7 +402,7 @@ def test_browser_mutations_require_allowed_origin_and_csrf_token():
         "display_name": "CSRF Session",
         "password": "Senha-csrf-segura-2026",
     })
-    assert registered.status_code == 201
+    assert registered.status_code == 202
     campaign = account_client.post(
         "/api/v1/campaigns",
         json={"name": "Campanha CSRF"},
