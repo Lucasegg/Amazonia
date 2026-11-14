@@ -85,6 +85,40 @@ def test_parse_feature_rejects_non_http_source_url():
         parse_feature(feature)
 
 
+def test_parse_feature_rejects_openstreetmap_with_non_osm_reference():
+    feature = {
+        "type": "Feature",
+        "geometry": {"type": "Point", "coordinates": [-46.6333, -23.5505]},
+        "properties": {
+            "name": "Local",
+            "category": "other",
+            "source_ref": "other:123",
+            "source": "OpenStreetMap",
+            "source_license": "ODbL-1.0",
+            "source_url": "https://www.openstreetmap.org/",
+        },
+    }
+    with pytest.raises(ValueError, match="osm:type:id"):
+        parse_feature(feature)
+
+
+def test_parse_feature_rejects_openstreetmap_with_wrong_license():
+    feature = {
+        "type": "Feature",
+        "geometry": {"type": "Point", "coordinates": [-46.6333, -23.5505]},
+        "properties": {
+            "name": "Local",
+            "category": "other",
+            "source_ref": "osm:node:999",
+            "source": "OpenStreetMap",
+            "source_license": "CC0",
+            "source_url": "https://www.openstreetmap.org/node/999",
+        },
+    }
+    with pytest.raises(ValueError, match="ODbL-1.0"):
+        parse_feature(feature)
+
+
 def test_parse_feature_skips_unnamed_places():
     feature = {
         "type": "Feature",
