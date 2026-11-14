@@ -12,7 +12,12 @@ def send_account_email(recipient: str, subject: str, body: str) -> None:
     username = os.getenv("AMAZONIA_SMTP_USERNAME", "").strip()
     password = os.getenv("AMAZONIA_SMTP_PASSWORD", "")
     sender = os.getenv("AMAZONIA_EMAIL_FROM", "").strip()
-    port = int(os.getenv("AMAZONIA_SMTP_PORT", "587"))
+    try:
+        port = int(os.getenv("AMAZONIA_SMTP_PORT", "587"))
+    except ValueError as exc:
+        raise HTTPException(status_code=503, detail="Porta SMTP inválida.") from exc
+    if port not in {465, 587}:
+        raise HTTPException(status_code=503, detail="Use SMTP SSL na porta 465 ou STARTTLS na porta 587.")
     if not all((host, username, password, sender)):
         raise HTTPException(status_code=503, detail="Serviço de e-mail não configurado. Configure SMTP no ambiente da API.")
     message = EmailMessage()
