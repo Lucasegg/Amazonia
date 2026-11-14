@@ -3,10 +3,8 @@ import MapView from "./MapView";
 import type { InventoryItem, MapData } from "./types";
 
 const API_BASE = (import.meta.env.VITE_API_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
-let sessionToken: string | null = null;
-
 type Account = { id: string; email: string; display_name: string };
-type AuthResponse = { access_token: string; token_type: string; user: Account };
+type AuthResponse = { user: Account };
 
 type Origin = {
   id: string;
@@ -47,10 +45,23 @@ const DIRECTIONS = [
   { label: "NW", q: -1, r: 0 },
 ];
 
+function readCookie(name: string): string | null {
+  const prefix = name + "=";
+  const entry = document.cookie.split("; ").find((item) => item.startsWith(prefix));
+  return entry ? decodeURIComponent(entry.slice(prefix.length)) : null;
+}
+
 async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  const method = (init?.method || "GET").toUpperCase();
+  const csrfToken = method === "GET" || method === "HEAD" ? null : readCookie("amazonia_csrf");
   const response = await fetch(`${API_BASE}${path}`, {
     ...init,
-    headers: { "Content-Type": "application/json", ...(sessionToken ? { Authorization: "Bearer " + sessionToken } : {}), ...init?.headers },
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
+      ...init?.headers,
+    },
   });
   if (!response.ok) {
     const payload = await response.json().catch(() => null);
@@ -90,12 +101,6 @@ function App() {
 
   useEffect(() => {
     let active = true;
-    const savedToken = localStorage.getItem("amazonia_access_token");
-    if (!savedToken) {
-      setAuthReady(true);
-      return () => { active = false; };
-    }
-    sessionToken = savedToken;
     apiRequest<Account>("/api/v1/auth/me")
       .then(async (user) => {
         if (!active) return;
@@ -113,11 +118,7 @@ function App() {
         setApiReady(true);
         if (items.length > 0) setSelectedOrigin(items[0].id);
       })
-      .catch(() => {
-        sessionToken = null;
-        localStorage.removeItem("amazonia_access_token");
-        if (active) setError("Sua sessão expirou. Entre novamente.");
-      })
+      .catch(() => { if (active) setError(""); })
       .finally(() => { if (active) setAuthReady(true); });
     return () => { active = false; };
   }, []);
@@ -128,7 +129,7 @@ function App() {
       const path = authMode === "register" ? "/api/v1/auth/register" : "/api/v1/auth/login";
       const payload = authMode === "register" ? { email, password, display_name: displayName } : { email, password };
       const result = await apiRequest<AuthResponse>(path, { method: "POST", body: JSON.stringify(payload) });
-      sessionToken = result.access_token; localStorage.setItem("amazonia_access_token", result.access_token); setAccount(result.user);
+      setAccount(result.user);
       const [items, catalog, campaigns] = await Promise.all([apiRequest<Origin[]>("/api/v1/game/origins"), apiRequest<InventoryItem[]>("/api/v1/game/items"), apiRequest<Campaign[]>("/api/v1/campaigns")]);
       setOrigins(items); setItemCatalog(catalog); setSavedCampaigns(campaigns); setApiReady(true);
       if (items.length > 0) setSelectedOrigin(items[0].id); setPassword("");
@@ -136,8 +137,8 @@ function App() {
     finally { setLoading(false); setAuthReady(true); }
   }
 
-  function handleLogout() {
-    sessionToken = null; localStorage.removeItem("amazonia_access_token"); setAccount(null); setCampaign(null); setMapData(null); setSavedCampaigns([]); setApiReady(false);
+  async function handleLogout() {
+    try { await apiRequest<void>("/api/v1/auth/logout", { method: "POST" }); } finally { setAccount(null); setCampaign(null); setMapData(null); setSavedCampaigns([]); setApiReady(false); }
   }
 
   async function handleResumeCampaign(campaignId: string) {
