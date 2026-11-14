@@ -37,7 +37,7 @@ jobs:
         run: python -m compileall -q app migrations
 
   web:
-    name: Web - TypeScript e build
+    name: Web - auditoria, TypeScript e build
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -51,5 +51,7 @@ jobs:
           cache-dependency-path: apps/web/package.json
       - name: Instalar dependências
         run: npm install
+      - name: Auditoria de dependências (alta e crítica)
+        run: npm audit --audit-level=high
       - name: Validar TypeScript e build
         run: npm run build
