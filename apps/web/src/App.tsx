@@ -112,10 +112,11 @@ function App() {
           csrfToken = verified.csrf_token;
           window.history.replaceState({}, "", window.location.pathname);
         }
+        if (recoveryToken) return null;
         return apiRequest<Account>("/api/v1/auth/me");
       })
       .then(async (user) => {
-        if (!active) return;
+        if (!active || !user) return;
         setAccount(user);
         const [items, _health, catalog, campaigns] = await Promise.all([
           apiRequest<Origin[]>("/api/v1/game/origins"),
@@ -163,7 +164,7 @@ function App() {
   async function resendVerification() {
     setError(""); setAuthNotice(""); setLoading(true);
     try {
-      const result = await apiRequest<{ message: string }>("/api/v1/auth/resend-verification", { method: "POST", body: JSON.stringify({ email, password: "not-used" }) });
+      const result = await apiRequest<{ message: string }>("/api/v1/auth/resend-verification", { method: "POST", body: JSON.stringify({ email }) });
       setAuthNotice(result.message);
     } catch (err) { setError(err instanceof Error ? err.message : "Não foi possível solicitar a confirmação."); }
     finally { setLoading(false); }
@@ -326,7 +327,7 @@ function App() {
             <button className="primary-button" type="submit" disabled={loading}>{loading ? "AGUARDE..." : authMode === "login" ? "ENTRAR" : authMode === "register" ? "CRIAR CONTA" : authMode === "forgot" ? "ENVIAR INSTRUÇÕES" : "REDEFINIR SENHA"} <span>↗</span></button>
           </form>
           {authMode === "login" && <button className="auth-switch" type="button" onClick={() => setAuthMode("forgot")}>Esqueci minha senha</button>}
-          {authMode === "login" && <button className="auth-switch" type="button" onClick={resendVerification} disabled={loading}>Reenviar confirmação de e-mail</button>}
+          {authMode === "login" && <button className="auth-switch" type="button" onClick={resendVerification} disabled={loading || !email}>Reenviar confirmação de e-mail</button>}
           <button className="auth-switch" type="button" onClick={() => { setAuthNotice(""); setAuthMode(authMode === "login" ? "register" : "login"); }}>{authMode === "login" ? "Ainda não tem conta? Criar conta" : "Voltar para entrar"}</button>
           <div className="footnote">SENHAS PROTEGIDAS · CONFIRMAÇÃO DE E-MAIL · SESSÕES REVOGÁVEIS</div>
         </section>) : !campaign ? (
