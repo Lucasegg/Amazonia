@@ -2,7 +2,6 @@
 from __future__ import annotations
 import hashlib
 import hmac
-import secrets
 import os
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -137,6 +136,7 @@ def create_account_token(db: Session, user: User, purpose: str, lifetime: timede
     raw = secrets.token_urlsafe(32)
     token_hash = hashlib.sha256(raw.encode()).hexdigest()
     now = datetime.now(timezone.utc)
+    db.query(AccountToken).filter(AccountToken.expires_at < now - timedelta(days=7)).delete(synchronize_session=False)
     db.query(AccountToken).filter(
         AccountToken.user_id == user.id,
         AccountToken.purpose == purpose,
