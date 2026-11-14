@@ -373,9 +373,14 @@ def test_auth_uses_http_only_session_cookie_and_logout_revokes_browser_session()
     assert "HttpOnly" in response.headers.get("set-cookie", "")
     assert account_client.get("/api/v1/auth/me").status_code == 200
 
+    # Mesmo que um cookie tenha sido copiado antes do logout, a versão da sessão o invalida.
+    stolen_session = TestClient(app)
+    stolen_session.cookies.set("amazonia_session", account_client.cookies.get("amazonia_session"))
+    stolen_session.cookies.set("amazonia_csrf", account_client.cookies.get("amazonia_csrf"))
     logout = account_client.post("/api/v1/auth/logout")
     assert logout.status_code == 204
     assert account_client.get("/api/v1/auth/me").status_code == 401
+    assert stolen_session.get("/api/v1/auth/me").status_code == 401
 
 
 def test_browser_mutations_require_allowed_origin_and_csrf_token():
@@ -408,3 +413,15 @@ def test_browser_mutations_require_allowed_origin_and_csrf_token():
         headers={"Origin": "http://localhost:5173", "X-CSRF-Token": csrf},
     )
     assert allowed.status_code == 201
+
+
+
+def test_login_is_rate_limited_after_five_failed_attempts():
+    """Limita tentativas inválidas por e-mail mesmo entre clientes distintos."""
+    limited_client = TestClient(app)
+    payload = {"email": "bruteforce@example.com", "password": "senha-errada"}
+    for _ in range(5):
+        response = limited_client.post("/api/v1/auth/login", json=payload)
+        assert response.status_code == 401
+    blocked = limited_client.post("/api/v1/auth/login", json=payload)
+    assert blocked.status_code == 429
