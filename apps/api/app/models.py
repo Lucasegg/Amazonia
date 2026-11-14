@@ -14,6 +14,8 @@ class Campaign(Base):
     profession: Mapped[str] = mapped_column(String(30), nullable=False)
     attributes: Mapped[dict] = mapped_column(JSON, nullable=False)
     skills: Mapped[dict] = mapped_column(JSON, nullable=False)
+    starting_items: Mapped[list] = mapped_column(JSON, nullable=False)
+    contextual_strength: Mapped[str] = mapped_column(String(240), nullable=False)
     health: Mapped[int] = mapped_column(Integer, nullable=False, default=100)
     hunger: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     thirst: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
