@@ -82,3 +82,8 @@ O navegador recebe cookie de sessão HttpOnly e cookie CSRF separado. Requisiç�
 As migrações 0004 e 0005 criam contas, propriedade opcional de campanhas, versão de sessão e tabela de tentativas. Campanhas antigas sem proprietário não são atribuídas automaticamente.
 
 **Limitação atual:** verificação de e-mail e recuperação de senha ainda dependem da integração e configuração de um provedor transacional de e-mail. Não considere o fluxo de conta pronto para produção até esses recursos, o teste com duas contas e a configuração segura da Vercel estarem concluídos.
+
+
+### Verificação de e-mail e recuperação de senha
+
+Em ambientes publicados, configure `AMAZONIA_REQUIRE_EMAIL_VERIFICATION=true`, `AMAZONIA_WEB_URL`, as variáveis SMTP e `AMAZONIA_OWNER_EMAIL` conforme `docs/deploy-vercel-neon.md`. Cadastro exige confirmação por link de uso único; recuperação expira em 30 minutos e revoga sessões antigas. O papel `owner` só é concedido após confirmação do e-mail configurado, nunca por endereço hardcoded.

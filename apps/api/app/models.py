@@ -19,6 +19,8 @@ class User(Base):
     display_name: Mapped[str] = mapped_column(String(80), nullable=False)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     session_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    role: Mapped[str] = mapped_column(String(24), nullable=False, default="player", server_default="player")
+    email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
     campaigns: Mapped[list["Campaign"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
@@ -30,6 +32,22 @@ class AuthAttempt(Base):
     scope: Mapped[str] = mapped_column(String(24), nullable=False)
     key_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     attempted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
+
+class AccountToken(Base):
+    """Token de uso único para verificação de e-mail e recuperação de senha."""
+    __tablename__ = "account_tokens"
+    __table_args__ = (
+        UniqueConstraint("token_hash", name="uq_account_tokens_token_hash"),
+        Index("ix_account_tokens_user_purpose", "user_id", "purpose"),
+    )
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    purpose: Mapped[str] = mapped_column(String(24), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
+
 
 class Campaign(Base):
     __tablename__ = "campaigns"

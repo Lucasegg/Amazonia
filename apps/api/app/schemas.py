@@ -27,6 +27,7 @@ class UserRead(BaseModel):
     id: str
     email: str
     display_name: str
+    role: str
 
 class AuthResponse(BaseModel):
     user: UserRead
@@ -75,3 +76,24 @@ class CampaignRead(BaseModel):
 
 class UseItemRequest(BaseModel):
     item_id: str = Field(min_length=1, max_length=80)
+
+
+class AccountTokenRequest(BaseModel):
+    token: str = Field(min_length=20, max_length=256)
+
+
+class PasswordResetRequest(BaseModel):
+    token: str = Field(min_length=20, max_length=256)
+    password: str = Field(min_length=12, max_length=128)
+
+
+class EmailAddressRequest(BaseModel):
+    email: str = Field(min_length=5, max_length=254)
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if normalized.count("@") != 1 or "." not in normalized.rsplit("@", 1)[-1]:
+            raise ValueError("Informe um e-mail válido.")
+        return normalized

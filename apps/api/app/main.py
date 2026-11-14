@@ -1,5 +1,6 @@
 """API do jogo; o cliente nunca decide resultados mecânicos nem movimento."""
 import os
+import logging
 from random import SystemRandom
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
@@ -23,9 +24,12 @@ from app.domain.world import (
     hex_distance,
 )
 from app.models import Campaign, Character, PointOfInterest, User
-from app.schemas import AuthResponse, CampaignCreate, CampaignRead, CharacterCreate, CharacterRead, LoginRequest, MoveRequest, RegisterRequest, UseItemRequest, UserRead
-from app.auth import clear_auth_attempts, clear_session_cookies, get_current_user, hash_password, is_rate_limited, record_auth_attempt, set_csrf_cookie, set_session_cookies, verify_password
-from datetime import timedelta
+from app.schemas import AccountTokenRequest, AuthResponse, EmailAddressRequest, CampaignCreate, CampaignRead, CharacterCreate, CharacterRead, LoginRequest, MoveRequest, PasswordResetRequest, RegisterRequest, UseItemRequest, UserRead
+from app.auth import clear_auth_attempts, clear_session_cookies, consume_account_token, create_account_token, get_current_user, hash_password, is_rate_limited, record_auth_attempt, set_csrf_cookie, set_session_cookies, verify_password
+from app.email_delivery import send_account_email
+from datetime import datetime, timedelta, timezone
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="Amazonia API",
@@ -147,9 +151,18 @@ def csrf_token(request: Request, response: Response) -> dict[str, str]:
     return {"csrf_token": set_csrf_cookie(response, token)}
 
 
-@app.post("/api/v1/auth/register", response_model=AuthResponse, status_code=201, tags=["autenticacao"])
+def _account_action_url(action: str, token: str) -> str:
+    base = os.getenv("AMAZONIA_WEB_URL", "http://localhost:5173").rstrip("/")
+    return f"{base}/?{action}={token}"
+
+
+def _verification_required() -> bool:
+    return os.getenv("AMAZONIA_REQUIRE_EMAIL_VERIFICATION", "true").strip().lower() in {"1", "true", "yes"}
+
+
+@app.post("/api/v1/auth/register", status_code=202, tags=["autenticacao"])
 def register(payload: RegisterRequest, response: Response, request: Request, db: Session = Depends(get_db)) -> dict[str, object]:
-    """Cria conta com senha Argon2id e limita cadastros por IP."""
+    """Cria conta e, por padrão, exige confirmação do endereço antes do login."""
     client_ip = request.client.host if request.client else "unknown"
     if is_rate_limited(db, "register_ip", client_ip, 5, timedelta(hours=1)):
         raise HTTPException(status_code=429, detail="Muitas tentativas de cadastro. Tente novamente mais tarde.")
@@ -164,8 +177,81 @@ def register(payload: RegisterRequest, response: Response, request: Request, db:
         db.rollback()
         raise HTTPException(status_code=409, detail="Este e-mail já possui uma conta.") from exc
     db.refresh(user)
+    if _verification_required():
+        token = create_account_token(db, user, "verify_email", timedelta(hours=24))
+        link = _account_action_url("verify", token)
+        send_account_email(user.email, "Confirme sua conta Amazonia", f"Olá, {user.display_name}.\n\nConfirme seu e-mail em até 24 horas acessando:\n{link}\n\nSe você não criou esta conta, ignore esta mensagem.")
+        return {"message": "Conta criada. Enviamos um link de confirmação para seu e-mail."}
+    set_session_cookies(response, user.id, user.session_version)
+    return {"message": "Conta criada. Entre com seu e-mail e senha."}
+
+
+@app.post("/api/v1/auth/verify-email", response_model=AuthResponse, tags=["autenticacao"])
+def verify_email(payload: AccountTokenRequest, response: Response, db: Session = Depends(get_db)) -> dict[str, object]:
+    """Confirma o e-mail com token de uso único e provisiona o owner por configuração."""
+    user = consume_account_token(db, payload.token, "verify_email")
+    if user is None:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Link inválido ou expirado. Solicite outro e-mail de confirmação.")
+    user.email_verified_at = datetime.now(timezone.utc)
+    owner_email = os.getenv("AMAZONIA_OWNER_EMAIL", "").strip().lower()
+    if owner_email and user.email.lower() == owner_email:
+        user.role = "owner"
+    db.commit()
+    db.refresh(user)
     csrf_token = set_session_cookies(response, user.id, user.session_version)
     return {"user": user, "csrf_token": csrf_token}
+
+
+@app.post("/api/v1/auth/resend-verification", status_code=202, tags=["autenticacao"])
+def resend_verification(payload: EmailAddressRequest, request: Request, db: Session = Depends(get_db)) -> dict[str, str]:
+    """Reenvia confirmação sem revelar se o endereço está cadastrado."""
+    client_ip = request.client.host if request.client else "unknown"
+    if is_rate_limited(db, "verify_email", payload.email, 3, timedelta(hours=1)) or is_rate_limited(db, "verify_ip", client_ip, 10, timedelta(hours=1)):
+        raise HTTPException(status_code=429, detail="Muitas solicitações. Tente novamente mais tarde.")
+    record_auth_attempt(db, "verify_email", payload.email)
+    record_auth_attempt(db, "verify_ip", client_ip)
+    user = db.query(User).filter(User.email == payload.email, User.email_verified_at.is_(None)).first()
+    if user is not None:
+        token = create_account_token(db, user, "verify_email", timedelta(hours=24))
+        link = _account_action_url("verify", token)
+        try:
+            send_account_email(user.email, "Confirme sua conta Amazonia", f"Confirme seu e-mail em até 24 horas:\n{link}")
+        except HTTPException:
+            logger.exception("Falha ao entregar e-mail de confirmação.")
+    return {"message": "Se houver uma conta pendente para esse endereço, enviaremos uma nova confirmação."}
+
+
+@app.post("/api/v1/auth/forgot-password", status_code=202, tags=["autenticacao"])
+def forgot_password(payload: EmailAddressRequest, request: Request, db: Session = Depends(get_db)) -> dict[str, str]:
+    """Solicita recuperação sem revelar a existência da conta."""
+    client_ip = request.client.host if request.client else "unknown"
+    if is_rate_limited(db, "reset_email", payload.email, 3, timedelta(hours=1)) or is_rate_limited(db, "reset_ip", client_ip, 10, timedelta(hours=1)):
+        raise HTTPException(status_code=429, detail="Muitas solicitações. Tente novamente mais tarde.")
+    record_auth_attempt(db, "reset_email", payload.email)
+    record_auth_attempt(db, "reset_ip", client_ip)
+    user = db.query(User).filter(User.email == payload.email, User.email_verified_at.is_not(None)).first()
+    if user is not None:
+        token = create_account_token(db, user, "password_reset", timedelta(minutes=30))
+        link = _account_action_url("reset", token)
+        try:
+            send_account_email(user.email, "Redefina sua senha Amazonia", f"Este link expira em 30 minutos e só pode ser usado uma vez:\n{link}")
+        except HTTPException:
+            logger.exception("Falha ao entregar e-mail de recuperação.")
+    return {"message": "Se a conta existir e estiver confirmada, enviaremos instruções de recuperação."}
+
+
+@app.post("/api/v1/auth/reset-password", status_code=200, tags=["autenticacao"])
+def reset_password(payload: PasswordResetRequest, db: Session = Depends(get_db)) -> dict[str, str]:
+    """Redefine a senha com token único e revoga todas as sessões anteriores."""
+    user = consume_account_token(db, payload.token, "password_reset")
+    if user is None:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Link inválido ou expirado. Solicite uma nova recuperação.")
+    user.password_hash = hash_password(payload.password)
+    user.session_version += 1
+    db.commit()
+    return {"message": "Senha redefinida. Entre novamente com sua nova senha."}
 
 
 @app.post("/api/v1/auth/login", response_model=AuthResponse, tags=["autenticacao"])
@@ -175,7 +261,7 @@ def login(payload: LoginRequest, response: Response, request: Request, db: Sessi
     if is_rate_limited(db, "login_email", payload.email, 5, timedelta(minutes=15)) or is_rate_limited(db, "login_ip", client_ip, 20, timedelta(minutes=15)):
         raise HTTPException(status_code=429, detail="Muitas tentativas de acesso. Aguarde antes de tentar novamente.")
     user = db.query(User).filter(User.email == payload.email).first()
-    if user is None or not verify_password(payload.password, user.password_hash):
+    if user is None or not verify_password(payload.password, user.password_hash) or (_verification_required() and user.email_verified_at is None):
         record_auth_attempt(db, "login_email", payload.email)
         record_auth_attempt(db, "login_ip", client_ip)
         raise HTTPException(status_code=401, detail="E-mail ou senha inválidos.")
