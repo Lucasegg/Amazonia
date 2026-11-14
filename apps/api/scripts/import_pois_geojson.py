@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+from urllib.parse import urlparse
 from uuid import NAMESPACE_URL, uuid5
 
 from app.database import SessionLocal
@@ -31,13 +32,15 @@ ALLOWED_CATEGORIES = {
 
 def parse_feature(feature: dict) -> dict | None:
     """Valida e normaliza uma Feature GeoJSON Point; ignora dados sem nome."""
+    if not isinstance(feature, dict) or feature.get("type") != "Feature":
+        raise ValueError("Cada item precisa ser uma GeoJSON Feature.")
     properties = feature.get("properties") or {}
     geometry = feature.get("geometry") or {}
     if geometry.get("type") != "Point":
         raise ValueError("POI precisa usar geometria Point.")
 
     coordinates = geometry.get("coordinates") or []
-    if len(coordinates) < 2:
+    if not isinstance(coordinates, list) or len(coordinates) < 2:
         raise ValueError("POI precisa informar longitude e latitude.")
     longitude, latitude = float(coordinates[0]), float(coordinates[1])
     q, r = latlon_to_cell(latitude, longitude)
@@ -51,20 +54,47 @@ def parse_feature(feature: dict) -> dict | None:
         raise ValueError(f"Categoria não permitida: {category}")
 
     source_ref = str(properties.get("source_ref") or "").strip()
-    if not source_ref and properties.get("osm_type") and properties.get("osm_id"):
-        source_ref = f"osm:{properties['osm_type']}:{properties['osm_id']}"
+    osm_type = str(properties.get("osm_type") or "").strip()
+    osm_id = str(properties.get("osm_id") or "").strip()
+    if not source_ref and osm_type and osm_id:
+        source_ref = f"osm:{osm_type}:{osm_id}"
     if not source_ref:
         raise ValueError("POI precisa de source_ref estável para evitar duplicação.")
 
     if abs(q) > MAX_CELL_COORDINATE or abs(r) > MAX_CELL_COORDINATE:
         return None
 
+    source = str(properties.get("source") or "").strip()
+    if not source and source_ref.startswith("osm:"):
+        source = "OpenStreetMap"
+    if not source:
+        raise ValueError("POI precisa identificar a fonte dos dados.")
+
+    source_license = str(properties.get("source_license") or "").strip()
+    if not source_license and source == "OpenStreetMap":
+        source_license = "ODbL-1.0"
+    if not source_license:
+        raise ValueError(
+            f"POI da fonte {source!r} precisa declarar source_license explicitamente."
+        )
+
+    source_url = str(properties.get("source_url") or "").strip()
+    if not source_url and source == "OpenStreetMap":
+        parts = source_ref.split(":")
+        if len(parts) == 3 and parts[0] == "osm":
+            source_url = f"https://www.openstreetmap.org/{parts[1]}/{parts[2]}"
+        else:
+            source_url = "https://www.openstreetmap.org/"
+    parsed_url = urlparse(source_url)
+    if not parsed_url.scheme or not parsed_url.netloc or parsed_url.scheme not in {"http", "https"}:
+        raise ValueError("POI precisa de source_url HTTP ou HTTPS válido.")
+
     raw_tags = properties.get("tags") or {}
     tags = {str(key): str(value) for key, value in raw_tags.items()} if isinstance(raw_tags, dict) else {}
 
     return {
         "id": str(uuid5(NAMESPACE_URL, source_ref)),
-        "source_ref": source_ref,
+        "source_ref": source_ref[:120],
         "name": name[:120],
         "category": category,
         "latitude": latitude,
@@ -72,9 +102,9 @@ def parse_feature(feature: dict) -> dict | None:
         "cell_q": q,
         "cell_r": r,
         "tags": tags,
-        "source": str(properties.get("source") or "OpenStreetMap")[:40],
-        "source_license": str(properties.get("source_license") or "ODbL-1.0")[:40],
-        "source_url": str(properties.get("source_url") or "https://www.openstreetmap.org/")[:255],
+        "source": source[:40],
+        "source_license": source_license[:40],
+        "source_url": source_url[:255],
     }
 
 
