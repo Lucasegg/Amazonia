@@ -237,3 +237,21 @@ def test_cannot_consume_missing_item_or_unknown_item():
     current = client.get(f"/api/v1/campaigns/{campaign['id']}").json()
     assert current["character"]["needs"]["thirst"] == 0
     assert current["world_time_minutes"] == 0
+
+
+def test_rest_action_recovers_fatigue_and_persists_time():
+    campaign = create_campaign("Uma pausa necessária")
+    create_character(campaign["id"])
+    with TestingSessionLocal() as session:
+        stored = session.get(models.Character, client.get(f"/api/v1/campaigns/{campaign['id']}").json()["character"]["id"])
+        stored.needs = {"hunger": 10, "thirst": 20, "fatigue": 45, "health": 90}
+        session.commit()
+
+    response = client.post(f"/api/v1/campaigns/{campaign['id']}/rest")
+    assert response.status_code == 200
+    assert response.json()["needs"] == {"hunger": 16, "thirst": 30, "fatigue": 15, "health": 90}
+    assert response.json()["world_time_minutes"] == 60
+
+    persisted = client.get(f"/api/v1/campaigns/{campaign['id']}").json()
+    assert persisted["character"]["needs"] == response.json()["needs"]
+    assert persisted["world_time_minutes"] == 60
