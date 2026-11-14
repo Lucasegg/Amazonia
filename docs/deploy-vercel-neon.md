@@ -57,3 +57,24 @@ A migração 0004 mantém `campaigns.user_id` anulável para preservar campanhas
 ## Limitações antes da produção
 
 Verificação de e-mail e recuperação de senha ainda exigem integração com provedor transacional e credenciais no ambiente. A Vercel reportar `Ready` confirma somente o deployment. Confirme variáveis sem revelar valores e execute o teste real no navegador. Não libere produção até concluir esses pontos.
+
+
+## Verificação de e-mail, recuperação e conta owner
+
+A API exige verificação de e-mail por padrão (`AMAZONIA_REQUIRE_EMAIL_VERIFICATION=true`). Cadastro envia link de uso único com validade de 24 horas. Login permanece bloqueado até a confirmação. Recuperação envia link de uso único válido por 30 minutos e revoga todas as sessões após a troca da senha.
+
+Configure no projeto Vercel da API, sempre como variáveis sensíveis quando aplicável:
+- `AMAZONIA_REQUIRE_EMAIL_VERIFICATION=true`
+- `AMAZONIA_WEB_URL`: origem HTTPS exata do frontend (sem caminho)
+- `AMAZONIA_SMTP_HOST`
+- `AMAZONIA_SMTP_PORT`: 587 para STARTTLS ou 465 para SMTP SSL
+- `AMAZONIA_SMTP_USERNAME`
+- `AMAZONIA_SMTP_PASSWORD`
+- `AMAZONIA_EMAIL_FROM`: remetente autorizado pelo provedor
+- `AMAZONIA_OWNER_EMAIL`: e-mail do proprietário, usado apenas após confirmação bem-sucedida
+
+Não coloque credenciais SMTP no repositório, no frontend ou em mensagens. O papel `owner` só é atribuído após o usuário confirmar o endereço e somente se o e-mail normalizado corresponder a `AMAZONIA_OWNER_EMAIL`. Não existe e-mail de proprietário hardcoded.
+
+A migração `0006_account_verification` adiciona `users.role`, `users.email_verified_at` e `account_tokens`. Tokens em texto puro são enviados apenas por e-mail; o banco guarda somente SHA-256, com propósito, expiração e uso único.
+
+Em testes automatizados, `AMAZONIA_REQUIRE_EMAIL_VERIFICATION=false` permite fluxo local sem SMTP. Nunca use esse valor no Preview/Production publicado.
