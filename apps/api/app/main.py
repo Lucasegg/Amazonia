@@ -2,8 +2,9 @@
 import os
 from random import SystemRandom
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
@@ -23,7 +24,7 @@ from app.domain.world import (
 )
 from app.models import Campaign, Character, PointOfInterest, User
 from app.schemas import AuthResponse, CampaignCreate, CampaignRead, CharacterCreate, CharacterRead, LoginRequest, MoveRequest, RegisterRequest, UseItemRequest, UserRead
-from app.auth import create_access_token, get_current_user, hash_password, verify_password
+from app.auth import clear_session_cookies, get_current_user, hash_password, set_session_cookies, verify_password
 
 app = FastAPI(
     title="Amazonia API",
@@ -42,10 +43,29 @@ allowed_origins = [
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
-    allow_credentials=False,
+    allow_credentials=True,
     allow_methods=["GET", "POST"],
-    allow_headers=["Content-Type", "Authorization"],
+    allow_headers=["Content-Type", "X-CSRF-Token"],
 )
+
+
+@app.middleware("http")
+async def enforce_browser_origin(request: Request, call_next):
+    """Bloqueia origens externas em operações mutáveis, inclusive login/cadastro."""
+    if request.method not in {"GET", "HEAD", "OPTIONS"}:
+        origin = request.headers.get("origin")
+        if origin:
+            allowed = {
+                item.strip()
+                for item in os.getenv(
+                    "AMAZONIA_CORS_ORIGINS",
+                    "http://localhost:5173,http://127.0.0.1:5173",
+                ).split(",")
+                if item.strip()
+            }
+            if origin not in allowed:
+                return JSONResponse(status_code=403, content={"detail": "Origem não autorizada."})
+    return await call_next(request)
 
 
 class CheckRequest(BaseModel):
@@ -120,7 +140,7 @@ def get_origin(origin_id: str) -> dict[str, object]:
 
 
 @app.post("/api/v1/auth/register", response_model=AuthResponse, status_code=201, tags=["autenticacao"])
-def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> dict[str, object]:
+def register(payload: RegisterRequest, response: Response, db: Session = Depends(get_db)) -> dict[str, object]:
     """Cria uma conta com senha derivada por Argon2id e inicia sessão."""
     if db.query(User).filter(User.email == payload.email).first() is not None:
         raise HTTPException(status_code=409, detail="Este e-mail já possui uma conta.")
@@ -132,16 +152,24 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> dict[st
         db.rollback()
         raise HTTPException(status_code=409, detail="Este e-mail já possui uma conta.") from exc
     db.refresh(user)
-    return {"access_token": create_access_token(user.id), "user": user}
+    set_session_cookies(response, user.id)\n    return {"user": user}
 
 
 @app.post("/api/v1/auth/login", response_model=AuthResponse, tags=["autenticacao"])
-def login(payload: LoginRequest, db: Session = Depends(get_db)) -> dict[str, object]:
+def login(payload: LoginRequest, response: Response, db: Session = Depends(get_db)) -> dict[str, object]:
     """Autentica por e-mail e senha sem revelar qual campo falhou."""
     user = db.query(User).filter(User.email == payload.email).first()
     if user is None or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status_code=401, detail="E-mail ou senha inválidos.", headers={"WWW-Authenticate": "Bearer"})
-    return {"access_token": create_access_token(user.id), "user": user}
+    set_session_cookies(response, user.id)\n    return {"user": user}
+
+
+@app.post("/api/v1/auth/logout", status_code=204, tags=["autenticacao"])
+def logout(response: Response) -> Response:
+    """Encerra a sessão removendo os cookies do navegador."""
+    clear_session_cookies(response)
+    response.status_code = 204
+    return response
 
 
 @app.get("/api/v1/auth/me", response_model=UserRead, tags=["autenticacao"])
