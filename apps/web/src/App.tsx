@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import MapView from "./MapView";
+import MapView, { MapLocation, MapPosition } from "./MapView";
 
 const API_BASE = (import.meta.env.VITE_API_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
 
@@ -30,17 +30,47 @@ type Campaign = {
   character: Character | null;
 };
 
+type MapState = {
+  campaign_id: string;
+  world_time_minutes: number;
+  current_position: MapPosition;
+  known_locations: MapLocation[];
+};
+
+type ActionResult = {
+  event_id: string;
+  action: "search" | "move";
+  message: string;
+  world_time_minutes: number;
+  current_position: MapPosition;
+  location: MapLocation | null;
+};
+
+type WorldEvent = {
+  id: string;
+  event_type: string;
+  world_time_minutes: number;
+  payload: Record<string, unknown>;
+  created_at: string;
+};
+
 async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await fetch(API_BASE + path, {
     ...init,
     headers: { "Content-Type": "application/json", ...init?.headers },
   });
   if (!response.ok) {
     const payload = await response.json().catch(() => null);
     const detail = payload?.detail;
-    throw new Error(typeof detail === "string" ? detail : `Falha na comunicação com a API (${response.status}).`);
+    throw new Error(typeof detail === "string" ? detail : "Falha na comunicação com a API (" + response.status + ").");
   }
   return response.json() as Promise<T>;
+}
+
+function elapsedTime(minutes: number): string {
+  const hours = Math.floor(minutes / 60);
+  const remaining = minutes % 60;
+  return hours + "h " + remaining + "min";
 }
 
 function App() {
@@ -49,7 +79,12 @@ function App() {
   const [characterName, setCharacterName] = useState("");
   const [selectedOrigin, setSelectedOrigin] = useState("bombeiro");
   const [campaign, setCampaign] = useState<Campaign | null>(null);
+  const [mapState, setMapState] = useState<MapState | null>(null);
+  const [events, setEvents] = useState<WorldEvent[]>([]);
+  const [selectedLocationId, setSelectedLocationId] = useState("");
+  const [actionMessage, setActionMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState("");
   const [apiReady, setApiReady] = useState(false);
 
@@ -94,11 +129,18 @@ function App() {
     setError("");
     setLoading(true);
     try {
-      const character = await apiRequest<Character>(`/api/v1/campaigns/${campaign.id}/character`, {
+      const character = await apiRequest<Character>("/api/v1/campaigns/" + campaign.id + "/character", {
         method: "POST",
         body: JSON.stringify({ name: characterName, origin: selectedOrigin }),
       });
+      const [map, history] = await Promise.all([
+        apiRequest<MapState>("/api/v1/campaigns/" + campaign.id + "/map"),
+        apiRequest<WorldEvent[]>("/api/v1/campaigns/" + campaign.id + "/events"),
+      ]);
       setCampaign({ ...campaign, character });
+      setMapState(map);
+      setEvents(history);
+      setSelectedLocationId("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Não foi possível criar o personagem.");
     } finally {
@@ -106,7 +148,41 @@ function App() {
     }
   }
 
+  async function performAction(action: "search" | "move") {
+    if (!campaign?.character) return;
+    if (action === "move" && !selectedLocationId) return;
+    setActionLoading(true);
+    setError("");
+    try {
+      const payload = {
+        action,
+        idempotency_key: crypto.randomUUID(),
+        ...(action === "move" ? { target_location_id: selectedLocationId } : {}),
+      };
+      const result = await apiRequest<ActionResult>("/api/v1/campaigns/" + campaign.id + "/actions", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      const [updatedCampaign, updatedMap, history] = await Promise.all([
+        apiRequest<Campaign>("/api/v1/campaigns/" + campaign.id),
+        apiRequest<MapState>("/api/v1/campaigns/" + campaign.id + "/map"),
+        apiRequest<WorldEvent[]>("/api/v1/campaigns/" + campaign.id + "/events"),
+      ]);
+      setCampaign(updatedCampaign);
+      setMapState(updatedMap);
+      setEvents(history);
+      setActionMessage(result.message);
+      setSelectedLocationId("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "A ação não pôde ser concluída.");
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
   const chosenOrigin = origins.find((origin) => origin.id === selectedOrigin);
+  const currentLocationId = mapState?.current_position.location_id;
+  const travelOptions = mapState?.known_locations.filter((location) => location.id !== currentLocationId) ?? [];
 
   return (
     <main className="app-shell">
@@ -153,7 +229,7 @@ function App() {
             {chosenOrigin && (
               <div className="origin-preview">
                 <div><span className="preview-label">VANTAGEM CONTEXTUAL</span><strong>{chosenOrigin.contextual_strength}</strong></div>
-                <div><span className="preview-label">HABILIDADES INICIAIS</span><strong>{Object.entries(chosenOrigin.starting_skills).map(([skill, level]) => `${skill.replaceAll("_", " ")} · Nv. ${level}`).join(" / ")}</strong></div>
+                <div><span className="preview-label">HABILIDADES INICIAIS</span><strong>{Object.entries(chosenOrigin.starting_skills).map(([skill, level]) => skill.replaceAll("_", " ") + " · Nv. " + level).join(" / ")}</strong></div>
                 <div><span className="preview-label">EQUIPAMENTO INICIAL</span><strong>{chosenOrigin.starting_items.map((item) => item.replaceAll("_", " ")).join(", ")}</strong></div>
               </div>
             )}
@@ -161,15 +237,15 @@ function App() {
           </form>
           <div className="footnote">CAMPANHA: {campaign.name.toUpperCase()}</div>
         </section>
-      ) : (
+      ) : mapState ? (
         <section className="game-grid">
           <article className="status-card">
             <div className="section-kicker">CAMPANHA ATIVA</div>
             <h2>{campaign.name}</h2>
-            <p className="muted">Sua jornada está criada e salva.</p>
+            <p className="muted">Tempo decorrido: {elapsedTime(mapState.world_time_minutes)}</p>
             <div className="character-heading"><div className="avatar">{campaign.character.name.slice(0, 1).toUpperCase()}</div><div><strong>{campaign.character.name}</strong><span>{origins.find((item) => item.id === campaign.character?.origin)?.label || campaign.character.origin}</span></div></div>
             <div className="stat-list">
-              {Object.entries(campaign.character.attributes).map(([key, value]) => <div className="stat-row" key={key}><span>{key.toUpperCase()}</span><strong>{value}/5</strong><div className="stat-track"><i style={{ width: `${value * 20}%` }} /></div></div>)}
+              {Object.entries(campaign.character.attributes).map(([key, value]) => <div className="stat-row" key={key}><span>{key.toUpperCase()}</span><strong>{value}/5</strong><div className="stat-track"><i style={{ width: (value * 20) + "%" }} /></div></div>)}
             </div>
             <div className="section-kicker lower">CONDIÇÕES</div>
             <div className="condition-grid">
@@ -178,20 +254,59 @@ function App() {
               <div><span>SEDE</span><strong>{campaign.character.needs.thirst}%</strong></div>
               <div><span>FADIGA</span><strong>{campaign.character.needs.fatigue}%</strong></div>
             </div>
+            <div className="section-kicker lower">LOCAL ATUAL</div>
+            <p className="muted">{mapState.known_locations.find((location) => location.id === currentLocationId)?.name ?? "Local desconhecido"}</p>
           </article>
+
           <article className="map-card">
-            <div className="section-kicker">MAPA DE EXPLORAÇÃO</div>
-            <MapView />
-            <div className="map-note">Mapa de referência centralizado na cidade de São Paulo. A posição inicial do personagem ainda não foi definida; nenhum GPS é solicitado. Os tiles públicos do OpenStreetMap são usados apenas no protótipo de desenvolvimento, com atribuição visível.</div>
+            <div className="section-kicker">MAPA DE EXPLORAÇÃO · LOCAIS DESCOBERTOS</div>
+            <MapView currentPosition={mapState.current_position} locations={mapState.known_locations} />
+            <div className="map-note">O personagem começa em um ponto fictício de teste na Praça da Sé. O mapa só exibe locais já descobertos; a posição real do jogador não é coletada.</div>
+            <div className="exploration-controls">
+              <button className="secondary-button" type="button" onClick={() => performAction("search")} disabled={actionLoading}>
+                {actionLoading ? "AGUARDE..." : "EXPLORAR ARREDORES"}
+              </button>
+              <div className="travel-row">
+                <select aria-label="Local descoberto para deslocamento" value={selectedLocationId} onChange={(event) => setSelectedLocationId(event.target.value)}>
+                  <option value="">Escolha um local descoberto</option>
+                  {travelOptions.map((location) => <option key={location.id} value={location.id}>{location.name} · {location.distance_km.toFixed(2)} km</option>)}
+                </select>
+                <button className="primary-button travel-button" type="button" onClick={() => performAction("move")} disabled={actionLoading || !selectedLocationId}>
+                  IR ATÉ LÁ ↗
+                </button>
+              </div>
+              {actionMessage && <p className="action-message" role="status">{actionMessage}</p>}
+            </div>
+            <div className="known-locations">
+              <span className="preview-label">LOCAIS CONHECIDOS ({mapState.known_locations.length})</span>
+              {mapState.known_locations.map((location) => (
+                <div className="known-location" key={location.id}>
+                  <span>{location.name}</span><small>{location.distance_km.toFixed(2)} km</small>
+                </div>
+              ))}
+            </div>
           </article>
+
           <article className="story-card">
             <div className="section-kicker">DIÁRIO DE SOBREVIVÊNCIA</div>
-            <h2>O primeiro silêncio</h2>
-            <p>O telefone perdeu o sinal há horas. Do lado de fora, sirenes distantes cortam o silêncio — uma depois da outra, até que também desaparecem.</p>
-            <p>Você está no começo de uma história que ainda não compreende. Antes de sair, observe o que tem ao seu redor e decida com cuidado.</p>
-            <div className="story-rule">O MESTRE DE IA ENTRARÁ QUANDO AS REGRAS E O ESTADO DO MUNDO ESTIVEREM PRONTOS.</div>
+            <h2>Registro da jornada</h2>
+            {events.length === 0 ? (
+              <p>Você ainda não realizou nenhuma ação. Observe o mapa e explore os arredores para descobrir os primeiros pontos de interesse.</p>
+            ) : (
+              <div className="event-list">
+                {events.slice(-5).reverse().map((event) => (
+                  <div className="event-entry" key={event.id}>
+                    <span>{event.event_type === "search" ? "BUSCA" : "DESLOCAMENTO"} · {elapsedTime(event.world_time_minutes)}</span>
+                    <p>{typeof event.payload.message === "string" ? event.payload.message : "Uma ação foi registrada."}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="story-rule">BUSCAS E DESLOCAMENTOS SÃO VALIDADOS PELO SERVIDOR E REGISTRADOS NO HISTÓRICO DA CAMPANHA.</div>
           </article>
         </section>
+      ) : (
+        <section className="setup-card"><p className="muted">Carregando o estado do mundo...</p></section>
       )}
 
       <footer><span>AMAZONIA © 2026</span><span>UM MUNDO VIVO. ESCOLHAS REAIS. CONSEQUÊNCIAS PERMANENTES.</span></footer>
