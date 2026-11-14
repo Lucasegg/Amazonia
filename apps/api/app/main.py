@@ -182,8 +182,8 @@ def register(payload: RegisterRequest, response: Response, request: Request, db:
         link = _account_action_url("verify", token)
         send_account_email(user.email, "Confirme sua conta Amazonia", f"Olá, {user.display_name}.\n\nConfirme seu e-mail em até 24 horas acessando:\n{link}\n\nSe você não criou esta conta, ignore esta mensagem.")
         return {"message": "Conta criada. Enviamos um link de confirmação para seu e-mail."}
-    csrf_token = set_session_cookies(response, user.id, user.session_version)
-    return {"user": user, "csrf_token": csrf_token}
+    set_session_cookies(response, user.id, user.session_version)
+    return {"message": "Conta criada. Entre com seu e-mail e senha."}
 
 
 @app.post("/api/v1/auth/verify-email", response_model=AuthResponse, tags=["autenticacao"])
