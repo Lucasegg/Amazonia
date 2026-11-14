@@ -1,8 +1,8 @@
 # Sprint 2 — Mapa de referência
 
-## Escopo desta entrega
+## Escopo da entrega inicial
 
-Esta etapa adiciona somente a visualização cartográfica navegável da região inicial. O mapa não define spawn, não move o personagem e não revela pontos de interesse do jogo. O centro visual é uma referência geográfica aproximada da cidade de São Paulo: longitude -46.6333, latitude -23.5505.
+A PR do mapa adicionou a visualização cartográfica navegável da região inicial. Naquele momento, o centro era apenas uma referência e não definia o spawn. A etapa de exploração seguinte passou a definir um spawn fictício de teste na Praça da Sé e a alimentar o mapa com a posição persistida do personagem.
 
 ## Tecnologia e dados
 
@@ -18,9 +18,6 @@ Referências:
 ## Privacidade e integridade do mundo
 
 - O navegador não solicita GPS nem transmite a localização real do jogador.
-- O centro do mapa é apenas uma referência visual; não representa a posição de nenhum personagem.
-- Posição inicial, POIs, fog of war, movimento e descoberta serão definidos pelo estado persistido do jogo em uma etapa posterior.
-
-## Próxima fatia
-
-Adicionar catálogo de pontos de interesse com coordenadas de fontes públicas verificáveis, posição inicial fictícia do personagem, descoberta progressiva e movimentação validada no servidor. O mapa só exibirá marcadores conhecidos pelo personagem.
+- A posição exibida é fictícia e vem do estado persistido da campanha.
+- O mapa retorna e exibe somente pontos de interesse já descobertos pelo personagem.
+- O catálogo inicial e as constantes provisórias estão documentados em docs/SPRINT_2_EXPLORATION.md.
