@@ -6,7 +6,7 @@ RPG de sobrevivência e narrativa ambientado inicialmente na Grande São Paulo, 
 
 - Fase 0: visão, regras fundamentais e blueprint técnico documentados.
 - Sprint 1: motor determinístico, API, campanhas, personagens e interface web inicial.
-- Sprint 2: primeira visualização cartográfica interativa, ainda sem movimentação ou pontos de interesse jogáveis.
+- Sprint 2: mapa interativo, pontos de interesse reais, descoberta progressiva, deslocamento e histórico de eventos.
 - A experiência é individual e textual; a IA será narradora, nunca autoridade sobre regras ou estado persistido.
 
 ## Estrutura
@@ -41,9 +41,17 @@ Defina VITE_API_URL com a origem da API. Para permitir a interface no CORS, conf
 
 ## Mapa e dados cartográficos
 
-O mapa de referência usa MapLibre GL JS e tiles raster do OpenStreetMap apenas durante o protótipo local. A atribuição é exibida no mapa. Não há pré-carregamento em massa, nem garantia de disponibilidade ou uso ilimitado. Antes de publicar o jogo, será escolhido um provedor compatível com o volume e os termos de uso.
+O mapa usa MapLibre GL JS e tiles raster do OpenStreetMap durante o protótipo. A atribuição é exibida no mapa. Não há pré-carregamento em massa nem garantia de disponibilidade ou uso ilimitado. Antes de publicar o jogo, será escolhido um provedor compatível com o volume esperado e seus termos.
 
-O centro visual do mapa é uma referência da cidade de São Paulo; não representa a posição inicial do personagem. A aplicação não solicita GPS.
+O personagem começa em uma posição fictícia de teste na Praça da Sé, no Centro de São Paulo. O mapa revela somente pontos descobertos. A aplicação não solicita GPS nem coleta a localização real do jogador. As coordenadas e regras provisórias estão documentadas em docs/SPRINT_2_EXPLORATION.md.
+
+## API de exploração
+
+- GET /api/v1/campaigns/{campaign_id}/map
+- POST /api/v1/campaigns/{campaign_id}/actions
+- GET /api/v1/campaigns/{campaign_id}/events
+
+As ações search e move são validadas no servidor e registradas com chave de idempotência. Os parâmetros de raio, tempo de busca e velocidade de caminhada ainda são provisórios.
 
 ## Testes
 
