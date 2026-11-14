@@ -446,5 +446,8 @@ def test_csrf_bootstrap_endpoint_supports_cross_origin_frontend():
     token = response.json()["csrf_token"]
     assert token
     assert browser.cookies.get("amazonia_csrf") == token
-    blocked = browser.post("/api/v1/campaigns", json={"name": "Sem token"}, headers={"Origin": "http://localhost:5173"})
-    assert blocked.status_code == 401  # Sem sessão, mesmo com origem permitida.
+    blocked = browser.post("/api/v1/campaigns", json={"name": "Sem sessão"}, headers={
+        "Origin": "http://localhost:5173",
+        "X-CSRF-Token": token,
+    })
+    assert blocked.status_code == 401  # CSRF válido, mas sem sessão autenticada.
