@@ -130,6 +130,9 @@ def test_map_and_move_are_validated_by_server():
     assert state["player_position"]["q"] == 1
     assert state["player_position"]["r"] == 0
     assert state["world_time_minutes"] == 10
+    assert state["character_needs"] == {"hunger": 1, "thirst": 2, "fatigue": 1, "health": 100}
+    persisted = client.get(f"/api/v1/campaigns/{campaign['id']}").json()
+    assert persisted["character"]["needs"] == state["character_needs"]
     target_cell = next(cell for cell in state["cells"] if cell["q"] == 1 and cell["r"] == 0)
     assert target_cell["discovered"] is True
     assert target_cell["current"] is True
