@@ -1,5 +1,6 @@
 import os
 import re
+from urllib.parse import urlsplit
 from datetime import datetime, timezone
 import pytest
 from collections.abc import Generator
@@ -594,5 +595,8 @@ def test_account_action_links_keep_tokens_in_url_fragment(monkeypatch):
     """Tokens de e-mail não devem ir na requisição HTTP inicial da página."""
     monkeypatch.setenv("AMAZONIA_WEB_URL", "https://amazonia.example")
     link = main_module._account_action_url("verify", "one-time-secret")
-    assert link == "https://amazonia.example/#verify=one-time-secret"
-    assert "one-time-secret" not in link.split("?", 1)[-1] if "?" in link else True
+    parsed = urlsplit(link)
+    assert parsed.scheme == "https"
+    assert parsed.netloc == "amazonia.example"
+    assert parsed.query == ""
+    assert parsed.fragment == "verify=one-time-secret"
