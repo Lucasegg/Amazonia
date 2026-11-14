@@ -2,15 +2,17 @@ import { useEffect, useRef } from "react";
 import {
   Map as MapLibreMap,
   NavigationControl,
+  Popup,
   type GeoJSONSource,
 } from "maplibre-gl";
-import type { Feature, FeatureCollection, Polygon } from "geojson";
+import type { Feature, FeatureCollection, Point, Polygon } from "geojson";
 import "maplibre-gl/dist/maplibre-gl.css";
-import type { MapCell, MapData } from "./types";
+import type { MapCell, MapData, MapPOI } from "./types";
 
 const INITIAL_VIEW: [number, number] = [-46.6333, -23.5505];
 
 type CellProperties = Pick<MapCell, "q" | "r" | "discovered" | "current" | "adjacent">;
+type PoiProperties = Pick<MapPOI, "id" | "name" | "category" | "cell_q" | "cell_r">;
 
 function cellsToGeoJSON(cells: MapCell[]): FeatureCollection<Polygon, CellProperties> {
   const features: Feature<Polygon, CellProperties>[] = cells.map((cell) => {
@@ -37,6 +39,26 @@ function cellsToGeoJSON(cells: MapCell[]): FeatureCollection<Polygon, CellProper
     };
   });
   return { type: "FeatureCollection", features };
+}
+
+function poisToGeoJSON(pois: MapPOI[]): FeatureCollection<Point, PoiProperties> {
+  return {
+    type: "FeatureCollection",
+    features: pois.map((poi) => ({
+      type: "Feature",
+      properties: {
+        id: poi.id,
+        name: poi.name,
+        category: poi.category,
+        cell_q: poi.cell_q,
+        cell_r: poi.cell_r,
+      },
+      geometry: {
+        type: "Point",
+        coordinates: [poi.longitude, poi.latitude],
+      },
+    })),
+  };
 }
 
 type MapViewProps = {
@@ -114,6 +136,34 @@ function MapView({ mapData, onMove }: MapViewProps) {
           "line-opacity": 0.9,
         },
       });
+
+      map.addSource("game-pois", {
+        type: "geojson",
+        data: poisToGeoJSON(mapDataRef.current?.points_of_interest ?? []),
+      });
+      map.addLayer({
+        id: "game-pois-points",
+        type: "circle",
+        source: "game-pois",
+        paint: {
+          "circle-radius": 6,
+          "circle-color": "#f2cf78",
+          "circle-stroke-color": "#172117",
+          "circle-stroke-width": 2,
+        },
+      });
+      map.on("click", "game-pois-points", (event) => {
+        const name = event.features?.[0]?.properties?.name;
+        if (typeof name !== "string") return;
+        new Popup({ offset: 10 }).setLngLat(event.lngLat).setText(name).addTo(map);
+      });
+      map.on("mouseenter", "game-pois-points", () => {
+        map.getCanvas().style.cursor = "help";
+      });
+      map.on("mouseleave", "game-pois-points", () => {
+        map.getCanvas().style.cursor = "";
+      });
+
       map.on("click", "game-cells-fill", (event) => {
         const properties = event.features?.[0]?.properties;
         if (!properties || !properties.adjacent || properties.current) return;
@@ -136,16 +186,21 @@ function MapView({ mapData, onMove }: MapViewProps) {
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapData) return;
-    const updateSource = () => {
-      const source = map.getSource("game-cells") as GeoJSONSource | undefined;
-      source?.setData(cellsToGeoJSON(mapData.cells));
+    const updateSources = () => {
+      const cellsSource = map.getSource("game-cells") as GeoJSONSource | undefined;
+      const poisSource = map.getSource("game-pois") as GeoJSONSource | undefined;
+      cellsSource?.setData(cellsToGeoJSON(mapData.cells));
+      poisSource?.setData(poisToGeoJSON(mapData.points_of_interest));
       map.easeTo({
         center: [mapData.player_position.longitude, mapData.player_position.latitude],
         duration: 350,
       });
     };
-    if (map.isStyleLoaded() && map.getSource("game-cells")) updateSource();
-    else map.once("load", updateSource);
+    if (map.isStyleLoaded() && map.getSource("game-cells") && map.getSource("game-pois")) {
+      updateSources();
+    } else {
+      map.once("load", updateSources);
+    }
   }, [mapData]);
 
   return (
@@ -153,7 +208,7 @@ function MapView({ mapData, onMove }: MapViewProps) {
       ref={containerRef}
       className="maplibre-container"
       role="region"
-      aria-label="Mapa hexagonal de exploração da região metropolitana de São Paulo"
+      aria-label="Mapa hexagonal com pontos de interesse descobertos"
     />
   );
 }
