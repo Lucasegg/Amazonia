@@ -63,7 +63,9 @@ function formatWorldTime(minutes: number): string {
 }
 
 function App() {
-  const [origins, setOrigins] = useState<Origin[]>([]);\n  const [itemCatalog, setItemCatalog] = useState<InventoryItem[]>([]);\n  const [usingItem, setUsingItem] = useState(false);
+  const [origins, setOrigins] = useState<Origin[]>([]);
+  const [itemCatalog, setItemCatalog] = useState<InventoryItem[]>([]);
+  const [usingItem, setUsingItem] = useState(false);
   const [campaignName, setCampaignName] = useState("Minha primeira campanha");
   const [characterName, setCharacterName] = useState("");
   const [selectedOrigin, setSelectedOrigin] = useState("bombeiro");
@@ -78,11 +80,13 @@ function App() {
     let active = true;
     Promise.all([
       apiRequest<Origin[]>("/api/v1/game/origins"),
-      apiRequest<{ status: string }>("/health"),\n      apiRequest<InventoryItem[]>("/api/v1/game/items"),
+      apiRequest<{ status: string }>("/health"),
+      apiRequest<InventoryItem[]>("/api/v1/game/items"),
     ])
       .then(([items, _health, catalog]) => {
         if (!active) return;
-        setOrigins(items);\n        setItemCatalog(catalog);
+        setOrigins(items);
+        setItemCatalog(catalog);
         setApiReady(true);
         if (items.length > 0) setSelectedOrigin(items[0].id);
       })
