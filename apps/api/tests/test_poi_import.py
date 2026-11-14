@@ -102,6 +102,37 @@ def test_parse_feature_rejects_openstreetmap_with_non_osm_reference():
         parse_feature(feature)
 
 
+def test_parse_feature_rejects_malformed_osm_reference():
+    feature = {
+        "type": "Feature",
+        "geometry": {"type": "Point", "coordinates": [-46.6333, -23.5505]},
+        "properties": {
+            "name": "Local",
+            "category": "other",
+            "source_ref": "osm:invalid:abc",
+        },
+    }
+    with pytest.raises(ValueError, match="osm:node"):
+        parse_feature(feature)
+
+
+def test_parse_feature_rejects_osm_reference_with_other_source():
+    feature = {
+        "type": "Feature",
+        "geometry": {"type": "Point", "coordinates": [-46.6333, -23.5505]},
+        "properties": {
+            "name": "Local",
+            "category": "other",
+            "source_ref": "osm:node:999",
+            "source": "GeoSampa",
+            "source_license": "CC-BY-SA-4.0",
+            "source_url": "https://metadados.geosampa.prefeitura.sp.gov.br/",
+        },
+    }
+    with pytest.raises(ValueError, match="não pode ser atribuído"):
+        parse_feature(feature)
+
+
 def test_parse_feature_rejects_openstreetmap_with_wrong_license():
     feature = {
         "type": "Feature",
