@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import MapView from "./MapView";
-import type { MapData } from "./types";
+import type { InventoryItem, MapData } from "./types";
 
 const API_BASE = (import.meta.env.VITE_API_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
 
@@ -63,7 +63,7 @@ function formatWorldTime(minutes: number): string {
 }
 
 function App() {
-  const [origins, setOrigins] = useState<Origin[]>([]);
+  const [origins, setOrigins] = useState<Origin[]>([]);\n  const [itemCatalog, setItemCatalog] = useState<InventoryItem[]>([]);\n  const [usingItem, setUsingItem] = useState(false);
   const [campaignName, setCampaignName] = useState("Minha primeira campanha");
   const [characterName, setCharacterName] = useState("");
   const [selectedOrigin, setSelectedOrigin] = useState("bombeiro");
@@ -78,11 +78,11 @@ function App() {
     let active = true;
     Promise.all([
       apiRequest<Origin[]>("/api/v1/game/origins"),
-      apiRequest<{ status: string }>("/health"),
+      apiRequest<{ status: string }>("/health"),\n      apiRequest<InventoryItem[]>("/api/v1/game/items"),
     ])
-      .then(([items]) => {
+      .then(([items, _health, catalog]) => {
         if (!active) return;
-        setOrigins(items);
+        setOrigins(items);\n        setItemCatalog(catalog);
         setApiReady(true);
         if (items.length > 0) setSelectedOrigin(items[0].id);
       })
@@ -149,6 +149,36 @@ function App() {
       setError(err instanceof Error ? err.message : "Movimento não permitido.");
     } finally {
       setMoving(false);
+    }
+  }
+
+  async function handleUseItem(itemId: string) {
+    if (!campaign || !campaign.character || usingItem) return;
+    setError("");
+    setUsingItem(true);
+    try {
+      const result = await apiRequest<{
+        inventory: string[];
+        needs: Record<string, number>;
+        world_time_minutes: number;
+      }>(`/api/v1/campaigns/${campaign.id}/inventory/use`, {
+        method: "POST",
+        body: JSON.stringify({ item_id: itemId }),
+      });
+      setCampaign({
+        ...campaign,
+        world_time_minutes: result.world_time_minutes,
+        character: {
+          ...campaign.character,
+          inventory: result.inventory,
+          needs: result.needs,
+        },
+      });
+      setMapData(mapData ? { ...mapData, world_time_minutes: result.world_time_minutes, character_needs: result.needs } : null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Não foi possível consumir o item.");
+    } finally {
+      setUsingItem(false);
     }
   }
 
@@ -223,6 +253,19 @@ function App() {
               <div><span>FOME</span><strong>{campaign.character.needs.hunger}%</strong></div>
               <div><span>SEDE</span><strong>{campaign.character.needs.thirst}%</strong></div>
               <div><span>FADIGA</span><strong>{campaign.character.needs.fatigue}%</strong></div>
+            </div>
+            <div className="section-kicker lower">INVENTÁRIO</div>
+            <div className="inventory-list">
+              {itemCatalog.filter((item) => campaign.character?.inventory.includes(item.id)).map((item) => {
+                const quantity = campaign.character?.inventory.filter((id) => id === item.id).length || 0;
+                return (
+                  <div className="inventory-row" key={item.id}>
+                    <div><strong>{item.label} <span>×{quantity}</span></strong><small>{item.description}</small></div>
+                    <button type="button" disabled={usingItem} onClick={() => handleUseItem(item.id)}>USAR</button>
+                  </div>
+                );
+              })}
+              {campaign.character.inventory.length === 0 && <p className="muted">Seu inventário está vazio.</p>}
             </div>
           </article>
           <article className="map-card">
